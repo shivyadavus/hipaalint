@@ -3,13 +3,24 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import { z } from 'zod';
 import { RuleEvaluator } from '../engine/rule-evaluator.js';
 import { ScoreCalculator } from '../engine/score-calculator.js';
 import { generateJsonReport } from '../reports/json-report.js';
 import { generatePdfReport } from '../reports/pdf-report.js';
-import type { ComplianceFinding, ComplianceReport, SensitivityLevel } from '../engine/types.js';
+import type { ComplianceFinding, ComplianceReport } from '../engine/types.js';
 import { randomUUID } from 'crypto';
-import { basename, resolve } from 'path';
+import { basename } from 'path';
+import {
+  SecurityError,
+  validateScanPath,
+  validateOutputDirectory,
+  MCPScanArgsSchema,
+  MCPScoreArgsSchema,
+  MCPReportArgsSchema,
+  MCPPHIDetectArgsSchema,
+  MCPRulesArgsSchema,
+} from '../security/index.js';
 
 // ──────────────────────────────────────────────────
 // MCP Server Setup
@@ -176,6 +187,23 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
 }));
 
 // ──────────────────────────────────────────────────
+// Error Helper
+// ──────────────────────────────────────────────────
+
+function formatValidationError(err: unknown): string {
+  if (err instanceof SecurityError) {
+    return `Security Error: ${err.message}`;
+  }
+  if (err instanceof z.ZodError) {
+    return `Validation Error: ${err.errors.map((e) => `${e.path.join('.')}: ${e.message}`).join('; ')}`;
+  }
+  if (err instanceof Error) {
+    return err.message;
+  }
+  return String(err);
+}
+
+// ──────────────────────────────────────────────────
 // Tool Handlers
 // ──────────────────────────────────────────────────
 
@@ -199,13 +227,21 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 });
 
 async function handleScan(args: Record<string, unknown>) {
-  const path = resolve(args.path as string);
-  const framework = (args.framework as string) || 'hipaa';
-  const sensitivity = ((args.sensitivity as string) || 'balanced') as SensitivityLevel;
-
-  const evaluator = new RuleEvaluator({ sensitivity });
+  let validated: z.infer<typeof MCPScanArgsSchema>;
+  let path: string;
   try {
-    const result = evaluator.evaluate([path], framework);
+    validated = MCPScanArgsSchema.parse(args);
+    path = validateScanPath(validated.path);
+  } catch (err) {
+    return {
+      content: [{ type: 'text' as const, text: formatValidationError(err) }],
+      isError: true,
+    };
+  }
+
+  const evaluator = new RuleEvaluator({ sensitivity: validated.sensitivity });
+  try {
+    const result = evaluator.evaluate([path], validated.framework);
 
     // Format output
     const criticals = result.findings.filter((f) => f.severity === 'critical');
@@ -252,15 +288,23 @@ async function handleScan(args: Record<string, unknown>) {
 }
 
 async function handleScore(args: Record<string, unknown>) {
-  const path = resolve(args.path as string);
-  const framework = (args.framework as string) || 'hipaa';
-  const sensitivity = ((args.sensitivity as string) || 'balanced') as SensitivityLevel;
-
-  const evaluator = new RuleEvaluator({ sensitivity });
+  let validated: z.infer<typeof MCPScoreArgsSchema>;
+  let path: string;
   try {
-    const result = evaluator.evaluate([path], framework);
+    validated = MCPScoreArgsSchema.parse(args);
+    path = validateScanPath(validated.path);
+  } catch (err) {
+    return {
+      content: [{ type: 'text' as const, text: formatValidationError(err) }],
+      isError: true,
+    };
+  }
+
+  const evaluator = new RuleEvaluator({ sensitivity: validated.sensitivity });
+  try {
+    const result = evaluator.evaluate([path], validated.framework);
     const calculator = new ScoreCalculator();
-    const score = calculator.calculateScore(result, framework, sensitivity);
+    const score = calculator.calculateScore(result, validated.framework, validated.sensitivity);
 
     const bandEmoji: Record<string, string> = {
       compliant: '🟢',
@@ -289,16 +333,25 @@ async function handleScore(args: Record<string, unknown>) {
 }
 
 async function handleReport(args: Record<string, unknown>) {
-  const path = resolve(args.path as string);
-  const format = (args.format as string) || 'json';
-  const framework = (args.framework as string) || 'hipaa';
-  const sensitivity = ((args.sensitivity as string) || 'balanced') as SensitivityLevel;
-
-  const evaluator = new RuleEvaluator({ sensitivity });
+  let validated: z.infer<typeof MCPReportArgsSchema>;
+  let path: string;
+  let outputDir: string;
   try {
-    const result = evaluator.evaluate([path], framework);
+    validated = MCPReportArgsSchema.parse(args);
+    path = validateScanPath(validated.path);
+    outputDir = validated.output ? validateOutputDirectory(validated.output) : path;
+  } catch (err) {
+    return {
+      content: [{ type: 'text' as const, text: formatValidationError(err) }],
+      isError: true,
+    };
+  }
+
+  const evaluator = new RuleEvaluator({ sensitivity: validated.sensitivity });
+  try {
+    const result = evaluator.evaluate([path], validated.framework);
     const calculator = new ScoreCalculator();
-    const score = calculator.calculateScore(result, framework, sensitivity);
+    const score = calculator.calculateScore(result, validated.framework, validated.sensitivity);
 
     const report: ComplianceReport = {
       id: randomUUID(),
@@ -330,15 +383,14 @@ async function handleReport(args: Record<string, unknown>) {
       metadata: {
         hipaalintVersion: '0.1.0',
         rulesVersion: '2025.1',
-        frameworksEvaluated: [framework],
-        sensitivity,
+        frameworksEvaluated: [validated.framework],
+        sensitivity: validated.sensitivity,
       },
     };
 
-    const outputDir = (args.output as string) || path;
     let reportPath: string;
 
-    if (format === 'pdf') {
+    if (validated.format === 'pdf') {
       reportPath = await generatePdfReport(report, outputDir);
     } else {
       reportPath = generateJsonReport(report, outputDir);
@@ -358,13 +410,19 @@ async function handleReport(args: Record<string, unknown>) {
 }
 
 async function handlePHIDetect(args: Record<string, unknown>) {
-  const code = args.code as string;
-  const filePath = (args.filePath as string) || 'unknown.ts';
-  const sensitivity = ((args.sensitivity as string) || 'balanced') as SensitivityLevel;
+  let validated: z.infer<typeof MCPPHIDetectArgsSchema>;
+  try {
+    validated = MCPPHIDetectArgsSchema.parse(args);
+  } catch (err) {
+    return {
+      content: [{ type: 'text' as const, text: formatValidationError(err) }],
+      isError: true,
+    };
+  }
 
   const { PHIDetector } = await import('../engine/phi-detector.js');
-  const detector = new PHIDetector({ sensitivity });
-  const findings = detector.detect(code, filePath);
+  const detector = new PHIDetector({ sensitivity: validated.sensitivity });
+  const findings = detector.detect(validated.code, validated.filePath);
 
   if (findings.length === 0) {
     return {
@@ -385,25 +443,34 @@ async function handlePHIDetect(args: Record<string, unknown>) {
 }
 
 async function handleRules(args: Record<string, unknown>) {
-  const action = (args.action as string) || 'list';
+  let validated: z.infer<typeof MCPRulesArgsSchema>;
+  try {
+    validated = MCPRulesArgsSchema.parse(args);
+  } catch (err) {
+    return {
+      content: [{ type: 'text' as const, text: formatValidationError(err) }],
+      isError: true,
+    };
+  }
+
   const evaluator = new RuleEvaluator();
   const db = evaluator.getRuleDatabase();
 
   try {
     let rules;
 
-    switch (action) {
+    switch (validated.action) {
       case 'get':
-        if (!args.query) {
+        if (!validated.query) {
           return {
             content: [{ type: 'text' as const, text: 'Please provide a rule ID.' }],
             isError: true,
           };
         }
-        const rule = db.getRule(args.query as string);
+        const rule = db.getRule(validated.query);
         if (!rule) {
           return {
-            content: [{ type: 'text' as const, text: `Rule not found: ${args.query}` }],
+            content: [{ type: 'text' as const, text: `Rule not found: ${validated.query}` }],
             isError: true,
           };
         }
@@ -411,20 +478,20 @@ async function handleRules(args: Record<string, unknown>) {
         break;
 
       case 'search':
-        if (!args.query) {
+        if (!validated.query) {
           return {
             content: [{ type: 'text' as const, text: 'Please provide a search keyword.' }],
             isError: true,
           };
         }
-        rules = db.searchRules(args.query as string);
+        rules = db.searchRules(validated.query);
         break;
 
       default:
-        if (args.category) {
-          rules = db.getRulesByCategory(args.category as string, 'hipaa');
-        } else if (args.severity) {
-          rules = db.getRulesBySeverity(args.severity as string, 'hipaa');
+        if (validated.category) {
+          rules = db.getRulesByCategory(validated.category, 'hipaa');
+        } else if (validated.severity) {
+          rules = db.getRulesBySeverity(validated.severity, 'hipaa');
         } else {
           rules = db.getAllRules();
         }

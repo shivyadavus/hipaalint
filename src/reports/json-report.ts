@@ -1,13 +1,15 @@
 import type { ComplianceReport } from '../engine/types.js';
 import { writeFileSync } from 'fs';
 import { join } from 'path';
+import { validateOutputDirectory } from '../security/index.js';
 
 /**
  * Generate a JSON compliance report file.
  */
 export function generateJsonReport(report: ComplianceReport, outputDir: string): string {
+  const validatedDir = validateOutputDirectory(outputDir);
   const filename = `hipaalint-report-${report.generatedAt.split('T')[0]}.json`;
-  const outputPath = join(outputDir, filename);
+  const outputPath = join(validatedDir, filename);
 
   // Create a clean report without circular references
   const cleanReport = {
@@ -39,8 +41,9 @@ export function generateJsonReport(report: ComplianceReport, outputDir: string):
  * Generate a SARIF-format report for GitHub code scanning integration.
  */
 export function generateSarifReport(report: ComplianceReport, outputDir: string): string {
+  const validatedDir = validateOutputDirectory(outputDir);
   const filename = `hipaalint-results.sarif`;
-  const outputPath = join(outputDir, filename);
+  const outputPath = join(validatedDir, filename);
 
   const sarif = {
     $schema:

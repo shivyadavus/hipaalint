@@ -38,3 +38,11 @@ npm-debug.log*
 # Internal planning docs
 prd.md
 DESIGN_AND_IMPLEMENTATION_PLAN.md
+CLAUDE.md
+docs/
+
+# Claude Code local files
+.claude/
+
+# Windows artifacts
+nul

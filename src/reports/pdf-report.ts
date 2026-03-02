@@ -2,6 +2,7 @@ import PDFDocument from 'pdfkit';
 import { createWriteStream } from 'fs';
 import { join } from 'path';
 import type { ComplianceReport, ComplianceFinding } from '../engine/types.js';
+import { validateOutputDirectory } from '../security/index.js';
 
 const COLORS = {
   primary: '#1a1a2e',
@@ -37,8 +38,9 @@ export async function generatePdfReport(
   report: ComplianceReport,
   outputDir: string,
 ): Promise<string> {
+  const validatedDir = validateOutputDirectory(outputDir);
   const filename = `hipaalint-report-${report.generatedAt.split('T')[0]}.pdf`;
-  const outputPath = join(outputDir, filename);
+  const outputPath = join(validatedDir, filename);
 
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({

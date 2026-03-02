@@ -13,6 +13,17 @@ export {
   generateBadgeSvg,
 } from './reports/badge-generator.js';
 
+// Security
+export {
+  SecurityError,
+  validateScanPath,
+  validateOutputDirectory,
+  isSymlink,
+  sanitizeFilename,
+  createSafeRegex,
+  isReDoSVulnerable,
+} from './security/index.js';
+
 // Re-export types
 export type {
   ComplianceFinding,

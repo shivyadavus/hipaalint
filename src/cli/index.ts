@@ -1,15 +1,26 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
+import { z } from 'zod';
 import { RuleEvaluator } from '../engine/rule-evaluator.js';
 import { ScoreCalculator } from '../engine/score-calculator.js';
 import { generateJsonReport, generateSarifReport } from '../reports/json-report.js';
 import { generatePdfReport } from '../reports/pdf-report.js';
 import { PHIDetector } from '../engine/phi-detector.js';
-import type { ComplianceReport, SensitivityLevel } from '../engine/types.js';
+import type { ComplianceReport } from '../engine/types.js';
 import { randomUUID } from 'crypto';
 import { resolve, basename } from 'path';
 import { readFileSync } from 'fs';
+import {
+  SecurityError,
+  validateScanPath,
+  validateOutputDirectory,
+  ScanOptionsSchema,
+  ScoreOptionsSchema,
+  ReportOptionsSchema,
+  PHIOptionsSchema,
+  RulesOptionsSchema,
+} from '../security/index.js';
 
 const VERSION = '0.1.0';
 
@@ -19,6 +30,22 @@ program
   .name('hipaalint')
   .description('HIPAA compliance enforcement for AI-assisted development')
   .version(VERSION);
+
+/**
+ * Handle validation errors with a consistent exit code.
+ */
+function handleValidationError(err: unknown): never {
+  if (err instanceof SecurityError) {
+    console.error(`\nSecurity Error: ${err.message}\n`);
+    process.exit(2);
+  }
+  if (err instanceof z.ZodError) {
+    const messages = err.errors.map((e) => `${e.path.join('.')}: ${e.message}`).join(', ');
+    console.error(`\nValidation Error: ${messages}\n`);
+    process.exit(2);
+  }
+  throw err;
+}
 
 // ──────────────────────────────────────────────────
 // scan command
@@ -34,21 +61,29 @@ program
   .option('--sarif', 'Output as SARIF')
   .option('--max-files <n>', 'Max files to scan', '10000')
   .action(async (path: string, options) => {
-    const targetPath = resolve(path);
-    const sensitivity = options.sensitivity as SensitivityLevel;
+    let targetPath: string;
+    let validated: z.infer<typeof ScanOptionsSchema>;
+    try {
+      targetPath = validateScanPath(resolve(path));
+      validated = ScanOptionsSchema.parse(options);
+    } catch (err) {
+      handleValidationError(err);
+    }
+
+    const sensitivity = validated.sensitivity;
 
     console.log(`\n🛡️  HipaaLint AI — Scanning...\n`);
     console.log(`   Path: ${targetPath}`);
-    console.log(`   Framework: ${options.framework}`);
+    console.log(`   Framework: ${validated.framework}`);
     console.log(`   Sensitivity: ${sensitivity}\n`);
 
     const evaluator = new RuleEvaluator({ sensitivity });
     try {
-      const result = evaluator.evaluate([targetPath], options.framework, {
-        maxFiles: parseInt(options.maxFiles, 10),
+      const result = evaluator.evaluate([targetPath], validated.framework, {
+        maxFiles: validated.maxFiles,
       });
 
-      if (options.json) {
+      if (validated.json) {
         console.log(JSON.stringify(result, null, 2));
         return;
       }
@@ -115,16 +150,24 @@ program
   .option('--json', 'Output as JSON')
   .option('--threshold <score>', 'Fail if score is below threshold', '0')
   .action(async (path: string, options) => {
-    const targetPath = resolve(path);
-    const sensitivity = options.sensitivity as SensitivityLevel;
+    let targetPath: string;
+    let validated: z.infer<typeof ScoreOptionsSchema>;
+    try {
+      targetPath = validateScanPath(resolve(path));
+      validated = ScoreOptionsSchema.parse(options);
+    } catch (err) {
+      handleValidationError(err);
+    }
+
+    const sensitivity = validated.sensitivity;
 
     const evaluator = new RuleEvaluator({ sensitivity });
     try {
-      const result = evaluator.evaluate([targetPath], options.framework);
+      const result = evaluator.evaluate([targetPath], validated.framework);
       const calculator = new ScoreCalculator();
-      const score = calculator.calculateScore(result, options.framework, sensitivity);
+      const score = calculator.calculateScore(result, validated.framework, sensitivity);
 
-      if (options.json) {
+      if (validated.json) {
         console.log(JSON.stringify(score, null, 2));
         return;
       }
@@ -158,9 +201,8 @@ program
       );
 
       // Check threshold
-      const threshold = parseInt(options.threshold, 10);
-      if (threshold > 0 && score.overallScore < threshold) {
-        console.log(`❌ Score ${score.overallScore} is below threshold ${threshold}\n`);
+      if (validated.threshold > 0 && score.overallScore < validated.threshold) {
+        console.log(`❌ Score ${score.overallScore} is below threshold ${validated.threshold}\n`);
         process.exitCode = 1;
       }
     } finally {
@@ -181,17 +223,28 @@ program
   .option('--format <format>', 'Report format: json, pdf, sarif', 'json')
   .option('-o, --output <dir>', 'Output directory')
   .action(async (path: string, options) => {
-    const targetPath = resolve(path);
-    const sensitivity = options.sensitivity as SensitivityLevel;
-    const outputDir = options.output ? resolve(options.output) : targetPath;
+    let targetPath: string;
+    let outputDir: string;
+    let validated: z.infer<typeof ReportOptionsSchema>;
+    try {
+      targetPath = validateScanPath(resolve(path));
+      validated = ReportOptionsSchema.parse(options);
+      outputDir = validated.output
+        ? validateOutputDirectory(resolve(validated.output))
+        : targetPath;
+    } catch (err) {
+      handleValidationError(err);
+    }
 
-    console.log(`\n🛡️  Generating ${options.format.toUpperCase()} report...\n`);
+    const sensitivity = validated.sensitivity;
+
+    console.log(`\n🛡️  Generating ${validated.format.toUpperCase()} report...\n`);
 
     const evaluator = new RuleEvaluator({ sensitivity });
     try {
-      const result = evaluator.evaluate([targetPath], options.framework);
+      const result = evaluator.evaluate([targetPath], validated.framework);
       const calculator = new ScoreCalculator();
-      const score = calculator.calculateScore(result, options.framework, sensitivity);
+      const score = calculator.calculateScore(result, validated.framework, sensitivity);
 
       const report: ComplianceReport = {
         id: randomUUID(),
@@ -223,13 +276,13 @@ program
         metadata: {
           hipaalintVersion: VERSION,
           rulesVersion: '2025.1',
-          frameworksEvaluated: [options.framework],
+          frameworksEvaluated: [validated.framework],
           sensitivity,
         },
       };
 
       let reportPath: string;
-      switch (options.format) {
+      switch (validated.format) {
         case 'pdf':
           reportPath = await generatePdfReport(report, outputDir);
           break;
@@ -258,8 +311,16 @@ program
   .argument('<file>', 'File path to scan for PHI')
   .option('-s, --sensitivity <level>', 'Sensitivity level', 'balanced')
   .action(async (file: string, options) => {
-    const filePath = resolve(file);
-    const sensitivity = options.sensitivity as SensitivityLevel;
+    let filePath: string;
+    let validated: z.infer<typeof PHIOptionsSchema>;
+    try {
+      filePath = validateScanPath(resolve(file));
+      validated = PHIOptionsSchema.parse(options);
+    } catch (err) {
+      handleValidationError(err);
+    }
+
+    const sensitivity = validated.sensitivity;
 
     try {
       const content = readFileSync(filePath, 'utf-8');
@@ -299,22 +360,29 @@ program
   .option('-q, --query <keyword>', 'Search rules by keyword')
   .option('--json', 'Output as JSON')
   .action(async (options) => {
+    let validated: z.infer<typeof RulesOptionsSchema>;
+    try {
+      validated = RulesOptionsSchema.parse(options);
+    } catch (err) {
+      handleValidationError(err);
+    }
+
     const evaluator = new RuleEvaluator();
     const db = evaluator.getRuleDatabase();
 
     try {
       let rules;
-      if (options.query) {
-        rules = db.searchRules(options.query);
-      } else if (options.category) {
-        rules = db.getRulesByCategory(options.category, 'hipaa');
-      } else if (options.severity) {
-        rules = db.getRulesBySeverity(options.severity, 'hipaa');
+      if (validated.query) {
+        rules = db.searchRules(validated.query);
+      } else if (validated.category) {
+        rules = db.getRulesByCategory(validated.category, 'hipaa');
+      } else if (validated.severity) {
+        rules = db.getRulesBySeverity(validated.severity, 'hipaa');
       } else {
         rules = db.getAllRules();
       }
 
-      if (options.json) {
+      if (validated.json) {
         console.log(JSON.stringify(rules, null, 2));
         return;
       }
