@@ -1,8 +1,10 @@
 import type { ComplianceFinding, Rule, ScanResult, SensitivityLevel } from './types.js';
 import { PHIDetector } from './phi-detector.js';
 import { RuleDatabase } from '../rules/rule-loader.js';
-import { readFileSync, readdirSync, statSync } from 'fs';
-import { join, extname } from 'path';
+import { validateScanPath, isSymlink } from '../security/index.js';
+import { createSafeRegex } from '../security/regex-safety.js';
+import { readFileSync, readdirSync, lstatSync } from 'fs';
+import { join, extname, basename } from 'path';
 
 // ──────────────────────────────────────────────────
 // Supported extensions
@@ -23,11 +25,13 @@ const SUPPORTED_EXTENSIONS = new Set([
   '.yaml',
   '.yml',
   '.toml',
-  '.env',
-  '.env.local',
-  '.env.development',
-  '.env.production',
 ]);
+
+// Dotfiles where extname() returns '' or wrong value — match by full filename or prefix
+function isSupportedFilename(name: string): boolean {
+  const lower = name.toLowerCase();
+  return lower === '.env' || lower.startsWith('.env.');
+}
 
 const DEFAULT_IGNORE = [
   'node_modules',
@@ -217,14 +221,14 @@ export class RuleEvaluator {
 
     // Check regex patterns
     if (config.regex) {
-      const regex = new RegExp(config.regex as string, 'g');
+      const regex = createSafeRegex(config.regex as string, 'g');
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i]!;
 
         // Skip excluded file patterns
         if (config.exclude && Array.isArray(config.exclude)) {
           const excluded = (config.exclude as string[]).some((pattern) =>
-            new RegExp(pattern.replace(/\*/g, '.*')).test(filePath),
+            createSafeRegex(pattern.replace(/\*/g, '.*')).test(filePath),
           );
           if (excluded) continue;
         }
@@ -234,7 +238,7 @@ export class RuleEvaluator {
           // Skip if exclude patterns match
           if (config.excludePatterns && Array.isArray(config.excludePatterns)) {
             const excluded = (config.excludePatterns as string[]).some((p) =>
-              new RegExp(p).test(line),
+              createSafeRegex(p).test(line),
             );
             if (excluded) continue;
           }
@@ -262,7 +266,7 @@ export class RuleEvaluator {
     // Check general patterns array
     if (config.patterns && Array.isArray(config.patterns)) {
       for (const pattern of config.patterns as string[]) {
-        const regex = new RegExp(pattern, 'g');
+        const regex = createSafeRegex(pattern, 'g');
         for (let i = 0; i < lines.length; i++) {
           const line = lines[i]!;
           let match: RegExpExecArray | null;
@@ -289,14 +293,14 @@ export class RuleEvaluator {
     const findings: ComplianceFinding[] = [];
 
     if (config.regex) {
-      const regex = new RegExp(config.regex as string, 'g');
+      const regex = createSafeRegex(config.regex as string, 'g');
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i]!;
 
         // Skip excluded files
         if (config.exclude && Array.isArray(config.exclude)) {
           const excluded = (config.exclude as string[]).some((pattern) =>
-            new RegExp(pattern.replace(/\*/g, '.*')).test(filePath),
+            createSafeRegex(pattern.replace(/\*/g, '.*')).test(filePath),
           );
           if (excluded) continue;
         }
@@ -313,16 +317,57 @@ export class RuleEvaluator {
 
   /**
    * Evaluate config file patterns.
+   * Checks whether config files contain required settings.
+   * If a file matches the checkFiles glob and lacks the required patterns,
+   * a finding is raised indicating the missing configuration.
    */
   private evaluateConfigPattern(
-    _filePath: string,
-    _content: string,
+    filePath: string,
+    content: string,
     _lines: string[],
-    _rule: Rule,
-    _config: Record<string, unknown>,
+    rule: Rule,
+    config: Record<string, unknown>,
   ): ComplianceFinding[] {
-    // Config patterns check for presence/absence of configuration values
-    // This is evaluated at the project level, not per-file
+    // Only evaluate files that match the checkFiles globs
+    if (!config.checkFiles || !Array.isArray(config.checkFiles)) return [];
+
+    const fileName = basename(filePath);
+    const matchesCheckFile = (config.checkFiles as string[]).some((glob) => {
+      const pattern = glob.replace(/\./g, '\\.').replace(/\*/g, '.*');
+      return createSafeRegex(`^${pattern}$`, 'i').test(fileName);
+    });
+
+    if (!matchesCheckFile) return [];
+
+    // Collect all setting patterns to search for
+    const settingPatterns: string[] = [];
+    if (config.requiredSettings && Array.isArray(config.requiredSettings)) {
+      settingPatterns.push(...(config.requiredSettings as string[]));
+    }
+    if (config.patterns && Array.isArray(config.patterns)) {
+      settingPatterns.push(...(config.patterns as string[]));
+    }
+
+    if (settingPatterns.length === 0) return [];
+
+    // Check if any of the required settings exist in the file content
+    const lowerContent = content.toLowerCase();
+    const hasAnySetting = settingPatterns.some((pattern) =>
+      lowerContent.includes(pattern.toLowerCase()),
+    );
+
+    if (!hasAnySetting) {
+      return [
+        this.createFinding(
+          rule,
+          filePath,
+          1,
+          1,
+          `Missing required configuration: ${settingPatterns.join(', ')}`,
+        ),
+      ];
+    }
+
     return [];
   }
 
@@ -409,7 +454,8 @@ export class RuleEvaluator {
     const files: string[] = [];
 
     for (const scanPath of paths) {
-      this.walkDirectory(scanPath, ignore, files, maxFiles);
+      const validatedPath = validateScanPath(scanPath);
+      this.walkDirectory(validatedPath, ignore, files, maxFiles, validatedPath);
       if (files.length >= maxFiles) break;
     }
 
@@ -419,13 +465,23 @@ export class RuleEvaluator {
   /**
    * Recursively walk a directory.
    */
-  private walkDirectory(dir: string, ignore: string[], files: string[], maxFiles: number): void {
+  private walkDirectory(
+    dir: string,
+    ignore: string[],
+    files: string[],
+    maxFiles: number,
+    scanRoot: string,
+  ): void {
     if (files.length >= maxFiles) return;
 
     try {
-      const stat = statSync(dir);
+      const stat = lstatSync(dir);
+      if (stat.isSymbolicLink()) return; // Skip symlinks
       if (stat.isFile()) {
-        if (SUPPORTED_EXTENSIONS.has(extname(dir).toLowerCase())) {
+        if (
+          SUPPORTED_EXTENSIONS.has(extname(dir).toLowerCase()) ||
+          isSupportedFilename(basename(dir))
+        ) {
           files.push(dir);
         }
         return;
@@ -449,11 +505,19 @@ export class RuleEvaluator {
           continue;
 
         const fullPath = join(dir, entry);
+
+        // Skip symbolic links to prevent directory escape
+        if (isSymlink(fullPath)) continue;
+
         try {
-          const stat = statSync(fullPath);
+          const stat = lstatSync(fullPath);
           if (stat.isDirectory()) {
-            this.walkDirectory(fullPath, ignore, files, maxFiles);
-          } else if (stat.isFile() && SUPPORTED_EXTENSIONS.has(extname(entry).toLowerCase())) {
+            this.walkDirectory(fullPath, ignore, files, maxFiles, scanRoot);
+          } else if (
+            stat.isFile() &&
+            (SUPPORTED_EXTENSIONS.has(extname(entry).toLowerCase()) ||
+              isSupportedFilename(entry))
+          ) {
             files.push(fullPath);
           }
         } catch {

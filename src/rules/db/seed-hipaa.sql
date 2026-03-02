@@ -49,7 +49,7 @@ VALUES
 
 (1, 'HIPAA-ENC-005', 'TLS Version Check', 'Ensures TLS 1.2 or higher is enforced for all secure connections.', 'high', 'encryption', '45 CFR §164.312(e)(2)(ii) — Encryption', 'Set minimum TLS version to 1.2. Prefer TLS 1.3. Disable SSLv3, TLS 1.0, TLS 1.1.', 'code_pattern', '{"patterns":["TLSv1_0","TLSv1_1","SSLv3","ssl3","tls1_0","tls1_1"],"isNegative":true}', 1),
 
-(1, 'HIPAA-ENC-006', 'Plain Text Password Storage', 'Detects password storage without hashing or encryption.', 'critical', 'encryption', '45 CFR §164.312(d) — Person or Entity Authentication', 'Hash passwords with Argon2id or bcrypt with minimum 10 rounds. Never store plaintext.', 'code_pattern', '{"patterns":["password\\\\s*=\\\\s*[\\'\\'\\\"\\\\`]","password\\\\s*:\\\\s*[\\'\\'\\\"\\\\`]"],"excludePatterns":["hash","encrypt","bcrypt","argon","scrypt"]}', 1);
+(1, 'HIPAA-ENC-006', 'Plain Text Password Storage', 'Detects password storage without hashing or encryption.', 'critical', 'encryption', '45 CFR §164.312(d) — Person or Entity Authentication', 'Hash passwords with Argon2id or bcrypt with minimum 10 rounds. Never store plaintext.', 'code_pattern', '{"patterns":["password\\\\s*=\\\\s*[\"\\\\x60]","password\\\\s*:\\\\s*[\"\\\\x60]"],"excludePatterns":["hash","encrypt","bcrypt","argon","scrypt"]}', 1);
 
 -- ─────────────────────────────────────────────────
 -- DOMAIN 3: Access Control (20% weight)
@@ -83,7 +83,7 @@ VALUES
 
 INSERT INTO rules (framework_id, rule_id, title, description, severity, category, citation, remediation, pattern_type, pattern_config, is_required)
 VALUES
-(1, 'HIPAA-INF-001', 'CORS Misconfiguration', 'Detects overly permissive CORS configuration allowing any origin.', 'high', 'infrastructure', '45 CFR §164.312(e)(1) — Transmission Security', 'Restrict CORS to specific trusted origins. Never use origin: * in production.', 'code_pattern', '{"patterns":["origin:\\\\s*[\\'\\'\\\"\\\\`]\\\\*[\\'\\'\\\"\\\\`]","Access-Control-Allow-Origin.*\\\\*","cors\\\\(\\\\)"],"exclude":["*.test.*"]}', 1),
+(1, 'HIPAA-INF-001', 'CORS Misconfiguration', 'Detects overly permissive CORS configuration allowing any origin.', 'high', 'infrastructure', '45 CFR §164.312(e)(1) — Transmission Security', 'Restrict CORS to specific trusted origins. Never use origin: * in production.', 'code_pattern', '{"patterns":["origin:\\\\s*[\"\\\\x60]\\\\*[\"\\\\x60]","Access-Control-Allow-Origin.*\\\\*","cors\\\\(\\\\)"],"exclude":["*.test.*"]}', 1),
 
 (1, 'HIPAA-INF-002', 'Missing Rate Limiting', 'Checks that API endpoints have rate limiting to prevent abuse.', 'medium', 'infrastructure', '45 CFR §164.312(a)(1) — Access Control', 'Implement rate limiting on all API endpoints. Use token bucket or sliding window algorithm.', 'import_pattern', '{"requiredImports":["rate-limit","express-rate-limit","ratelimit","throttle","bottleneck"],"context":"api"}', 1),
 
