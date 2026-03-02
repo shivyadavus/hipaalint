@@ -1,0 +1,32 @@
+// HipaaLint AI — Public API
+// Barrel export for library consumers
+
+export { PHIDetector } from './engine/phi-detector.js';
+export { RuleEvaluator } from './engine/rule-evaluator.js';
+export { ScoreCalculator } from './engine/score-calculator.js';
+export { RuleDatabase } from './rules/rule-loader.js';
+export { generateJsonReport, generateSarifReport } from './reports/json-report.js';
+export { generatePdfReport } from './reports/pdf-report.js';
+export {
+  generateBadgeUrl,
+  generateBadgeMarkdown,
+  generateBadgeSvg,
+} from './reports/badge-generator.js';
+
+// Re-export types
+export type {
+  ComplianceFinding,
+  ComplianceScore,
+  ComplianceReport,
+  DomainScore,
+  ScanResult,
+  Rule,
+  Framework,
+  Checkpoint,
+  PHIFinding,
+  SensitivityLevel,
+  Severity,
+  Category,
+  ScoreBand,
+  PHIIdentifierType,
+} from './engine/types.js';

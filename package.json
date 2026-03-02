@@ -1,0 +1,101 @@
+{
+  "name": "@hipaalint/ai",
+  "version": "1.0.0",
+  "description": "Catch HIPAA violations before they ship — PHI detection, compliance scoring, and audit reports for Claude Code, Cursor, and AI coding agents.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "hipaalint": "dist/cli/index.js"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/mcp-server/index.js",
+      "types": "./dist/mcp-server/index.d.ts"
+    },
+    "./cli": {
+      "import": "./dist/cli/index.js"
+    },
+    "./engine": {
+      "import": "./dist/engine/index.js",
+      "types": "./dist/engine/index.d.ts"
+    }
+  },
+  "files": [
+    "dist/",
+    "src/rules/db/*.sql",
+    "skills/",
+    "commands/",
+    "agents/",
+    ".claude-plugin/",
+    "AGENTS.md",
+    "action/action.yml",
+    "hooks/"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc && npm run copy-assets",
+    "copy-assets": "cp -r src/rules/db dist/rules/db 2>/dev/null || true",
+    "dev": "tsx watch src/mcp-server/index.ts",
+    "start": "node dist/mcp-server/index.js",
+    "cli": "tsx src/cli/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint 'src/**/*.ts' --max-warnings 0",
+    "lint:fix": "eslint 'src/**/*.ts' --fix",
+    "format": "prettier --write 'src/**/*.ts'",
+    "format:check": "prettier --check 'src/**/*.ts'",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build && npm run test",
+    "db:init": "tsx src/rules/init-db.ts",
+    "db:seed": "tsx src/rules/seed-db.ts",
+    "plugin:validate": "bash scripts/validate-plugin.sh",
+    "plugin:publish": "bash scripts/publish-plugin.sh"
+  },
+  "keywords": [
+    "hipaa",
+    "hipaa-compliance",
+    "claude-code-plugin",
+    "healthcare-compliance",
+    "hipaa-security-rule",
+    "mcp-server"
+  ],
+  "author": "Shiv Yadav",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/shivyadavus/hipaalint-ai.git"
+  },
+  "homepage": "https://github.com/shivyadavus/hipaalint-ai#readme",
+  "bugs": {
+    "url": "https://github.com/shivyadavus/hipaalint-ai/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "better-sqlite3": "^11.0.0",
+    "chalk": "^5.3.0",
+    "commander": "^12.0.0",
+    "glob": "^11.0.0",
+    "pdfkit": "^0.15.0",
+    "web-tree-sitter": "^0.24.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.0",
+    "@types/node": "^22.0.0",
+    "@types/pdfkit": "^0.13.0",
+    "@vitest/coverage-v8": "^2.0.0",
+    "eslint": "^9.0.0",
+    "prettier": "^3.3.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.6.0",
+    "typescript-eslint": "^8.0.0",
+    "vitest": "^2.0.0"
+  }
+}

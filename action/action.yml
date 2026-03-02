@@ -1,0 +1,119 @@
+name: 'HipaaLint HIPAA Scan'
+description: 'Scan your project for HIPAA compliance violations with HipaaLint AI'
+author: 'HipaaLint'
+
+branding:
+  icon: 'shield'
+  color: 'blue'
+
+inputs:
+  path:
+    description: 'Path to scan (relative to workspace root)'
+    required: false
+    default: '.'
+  framework:
+    description: 'Compliance framework'
+    required: false
+    default: 'hipaa'
+  sensitivity:
+    description: 'Detection sensitivity: strict, balanced, relaxed'
+    required: false
+    default: 'balanced'
+  threshold:
+    description: 'Minimum score to pass (0-100). Action fails if score is below this.'
+    required: false
+    default: '0'
+  format:
+    description: 'Report format: json, sarif'
+    required: false
+    default: 'sarif'
+  upload-sarif:
+    description: 'Upload SARIF results to GitHub Code Scanning'
+    required: false
+    default: 'true'
+
+outputs:
+  score:
+    description: 'HipaaLint Score (0-100)'
+  band:
+    description: 'Score band: compliant, needs_improvement, at_risk, critical'
+  findings:
+    description: 'Number of findings'
+  report-path:
+    description: 'Path to generated report file'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+
+    - name: Install HipaaLint
+      shell: bash
+      run: npm install -g @hipaalint/ai
+
+    - name: Run Compliance Scan
+      id: scan
+      shell: bash
+      run: |
+        SCAN_PATH="${{ github.workspace }}/${{ inputs.path }}"
+        
+        # Run scan and capture output
+        hipaalint scan "$SCAN_PATH" \
+          --framework ${{ inputs.framework }} \
+          --sensitivity ${{ inputs.sensitivity }} \
+          --json > /tmp/scan-results.json 2>&1 || true
+        
+        # Run score
+        SCORE_JSON=$(hipaalint score "$SCAN_PATH" \
+          --framework ${{ inputs.framework }} \
+          --sensitivity ${{ inputs.sensitivity }} \
+          --json 2>/dev/null)
+        
+        SCORE=$(echo "$SCORE_JSON" | jq -r '.overallScore')
+        BAND=$(echo "$SCORE_JSON" | jq -r '.band')
+        FINDINGS=$(jq '.findings | length' /tmp/scan-results.json)
+        
+        echo "score=$SCORE" >> $GITHUB_OUTPUT
+        echo "band=$BAND" >> $GITHUB_OUTPUT
+        echo "findings=$FINDINGS" >> $GITHUB_OUTPUT
+        
+        # Generate report
+        hipaalint report "$SCAN_PATH" \
+          --framework ${{ inputs.framework }} \
+          --sensitivity ${{ inputs.sensitivity }} \
+          --format ${{ inputs.format }} \
+          --output "${{ github.workspace }}" 2>/dev/null || true
+        
+        # Find report file
+        REPORT_FILE=$(ls -t ${{ github.workspace }}/hipaalint-* 2>/dev/null | head -1)
+        echo "report-path=$REPORT_FILE" >> $GITHUB_OUTPUT
+        
+        echo "### 🛡️ HipaaLint Score: $SCORE/100 ($BAND)" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+        echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+        echo "| Score | $SCORE/100 |" >> $GITHUB_STEP_SUMMARY
+        echo "| Band | $BAND |" >> $GITHUB_STEP_SUMMARY
+        echo "| Findings | $FINDINGS |" >> $GITHUB_STEP_SUMMARY
+
+    - name: Upload SARIF
+      if: inputs.upload-sarif == 'true' && inputs.format == 'sarif'
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: ${{ steps.scan.outputs.report-path }}
+      continue-on-error: true
+
+    - name: Check Threshold
+      if: inputs.threshold != '0'
+      shell: bash
+      run: |
+        SCORE=${{ steps.scan.outputs.score }}
+        THRESHOLD=${{ inputs.threshold }}
+        if (( $(echo "$SCORE < $THRESHOLD" | bc -l) )); then
+          echo "❌ HipaaLint score ($SCORE) is below threshold ($THRESHOLD)"
+          exit 1
+        fi
+        echo "✅ HipaaLint score ($SCORE) meets threshold ($THRESHOLD)"

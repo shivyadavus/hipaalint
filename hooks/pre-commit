@@ -1,0 +1,55 @@
+#!/bin/bash
+# ComplianceShield Pre-Commit Hook
+# Install: cp hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+# Or use with: complianceshield hook install
+
+set -e
+
+echo "🛡️  ComplianceShield — Pre-commit check..."
+
+# Check if complianceshield is installed
+if ! command -v complianceshield &> /dev/null; then
+  echo "⚠️  ComplianceShield not installed. Run: npm install -g @complianceshield/ai"
+  echo "   Skipping compliance check."
+  exit 0
+fi
+
+# Get staged files
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(ts|tsx|js|jsx|py|java|go|json|yaml|yml|env)$' || true)
+
+if [ -z "$STAGED_FILES" ]; then
+  echo "   No scannable files staged. Skipping."
+  exit 0
+fi
+
+# Create temp dir with staged files
+TMPDIR=$(mktemp -d)
+trap 'rm -rf "$TMPDIR"' EXIT
+
+for FILE in $STAGED_FILES; do
+  mkdir -p "$TMPDIR/$(dirname "$FILE")"
+  git show ":$FILE" > "$TMPDIR/$FILE" 2>/dev/null || true
+done
+
+# Run quick scan
+RESULT=$(complianceshield scan "$TMPDIR" --sensitivity relaxed --json 2>/dev/null)
+
+CRITICAL=$(echo "$RESULT" | grep -c '"severity":"critical"' || echo "0")
+HIGH=$(echo "$RESULT" | grep -c '"severity":"high"' || echo "0")
+
+if [ "$CRITICAL" -gt 0 ]; then
+  echo ""
+  echo "❌ BLOCKED: $CRITICAL critical compliance violation(s) found!"
+  echo ""
+  complianceshield scan "$TMPDIR" --sensitivity relaxed 2>/dev/null
+  echo ""
+  echo "Fix critical issues before committing. Use --no-verify to bypass (not recommended)."
+  exit 1
+fi
+
+if [ "$HIGH" -gt 0 ]; then
+  echo "⚠️  $HIGH high-severity finding(s) detected. Consider fixing before merge."
+fi
+
+echo "✅ Pre-commit compliance check passed."
+exit 0

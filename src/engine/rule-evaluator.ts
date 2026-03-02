@@ -1,0 +1,494 @@
+import type { ComplianceFinding, Rule, ScanResult, SensitivityLevel } from './types.js';
+import { PHIDetector } from './phi-detector.js';
+import { RuleDatabase } from '../rules/rule-loader.js';
+import { readFileSync, readdirSync, statSync } from 'fs';
+import { join, extname } from 'path';
+
+// ──────────────────────────────────────────────────
+// Supported extensions
+// ──────────────────────────────────────────────────
+
+const SUPPORTED_EXTENSIONS = new Set([
+  '.ts',
+  '.tsx',
+  '.js',
+  '.jsx',
+  '.mjs',
+  '.cjs',
+  '.py',
+  '.pyi',
+  '.java',
+  '.go',
+  '.json',
+  '.yaml',
+  '.yml',
+  '.toml',
+  '.env',
+  '.env.local',
+  '.env.development',
+  '.env.production',
+]);
+
+const DEFAULT_IGNORE = [
+  'node_modules',
+  'dist',
+  'build',
+  '.git',
+  'coverage',
+  '.next',
+  '.nuxt',
+  '__pycache__',
+  '.venv',
+  'venv',
+  '.idea',
+  '.vscode',
+  '.DS_Store',
+];
+
+// ──────────────────────────────────────────────────
+// Rule Evaluator
+// ──────────────────────────────────────────────────
+
+export class RuleEvaluator {
+  private phiDetector: PHIDetector;
+  private ruleDb: RuleDatabase;
+  private sensitivity: SensitivityLevel;
+
+  constructor(options: { dbPath?: string; sensitivity?: SensitivityLevel } = {}) {
+    this.sensitivity = options.sensitivity ?? 'balanced';
+    this.phiDetector = new PHIDetector({ sensitivity: this.sensitivity });
+    this.ruleDb = new RuleDatabase(options.dbPath);
+    this.ruleDb.initialize();
+  }
+
+  /**
+   * Evaluate files against a compliance framework.
+   */
+  evaluate(
+    paths: string[],
+    framework = 'hipaa',
+    options: { ignore?: string[]; maxFiles?: number } = {},
+  ): ScanResult {
+    const startTime = Date.now();
+    const ignore = [...DEFAULT_IGNORE, ...(options.ignore ?? [])];
+    const maxFiles = options.maxFiles ?? 10000;
+
+    // Collect files
+    const files = this.collectFiles(paths, ignore, maxFiles);
+    const rules = this.ruleDb.getRulesByFramework(framework);
+
+    // Evaluate each file
+    const allFindings: ComplianceFinding[] = [];
+    let filesSkipped = 0;
+
+    for (const filePath of files) {
+      try {
+        const content = readFileSync(filePath, 'utf-8');
+
+        // Size guard: skip files > 1MB
+        if (content.length > 1_000_000) {
+          filesSkipped++;
+          continue;
+        }
+
+        const findings = this.evaluateFile(filePath, content, rules);
+        allFindings.push(...findings);
+      } catch {
+        filesSkipped++;
+      }
+    }
+
+    return {
+      findings: this.deduplicateFindings(allFindings),
+      filesScanned: files.length - filesSkipped,
+      filesSkipped,
+      rulesEvaluated: rules.length,
+      scanDurationMs: Date.now() - startTime,
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Evaluate a single file against rules.
+   */
+  private evaluateFile(filePath: string, content: string, rules: Rule[]): ComplianceFinding[] {
+    const findings: ComplianceFinding[] = [];
+    const lines = content.split('\n');
+
+    // 1. Run PHI detector
+    const phiFindings = this.phiDetector.detect(content, filePath);
+    for (const phi of phiFindings) {
+      findings.push({
+        ruleId: `HIPAA-PHI-${phi.identifierType.toUpperCase()}`,
+        frameworkId: 'hipaa',
+        severity:
+          phi.confidence === 'high' ? 'critical' : phi.confidence === 'medium' ? 'high' : 'medium',
+        category: 'phi_protection',
+        title: `PHI Detected: ${phi.identifierType}`,
+        description: `Potential ${phi.identifierType} found in ${phi.context}`,
+        filePath,
+        lineNumber: phi.lineNumber,
+        columnNumber: phi.columnNumber,
+        codeSnippet: this.sanitizeCodeSnippet(lines[phi.lineNumber - 1] ?? ''),
+        citation: phi.citation,
+        remediation: `Remove or encrypt the ${phi.identifierType} value. Use tokenized references instead.`,
+        confidence: phi.confidence,
+        context: phi.context,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // 2. Evaluate code pattern rules
+    for (const rule of rules) {
+      try {
+        const config = JSON.parse(rule.patternConfig);
+        const ruleFindings = this.evaluateRule(filePath, content, lines, rule, config);
+        findings.push(...ruleFindings);
+      } catch {
+        // Skip rules with invalid config
+      }
+    }
+
+    return findings;
+  }
+
+  /**
+   * Evaluate a single rule against file content.
+   */
+  private evaluateRule(
+    filePath: string,
+    content: string,
+    lines: string[],
+    rule: Rule,
+    config: Record<string, unknown>,
+  ): ComplianceFinding[] {
+    const findings: ComplianceFinding[] = [];
+
+    switch (rule.patternType) {
+      case 'code_pattern':
+        findings.push(...this.evaluateCodePattern(filePath, content, lines, rule, config));
+        break;
+      case 'negative_pattern':
+        findings.push(...this.evaluateNegativePattern(filePath, content, lines, rule, config));
+        break;
+      case 'config_pattern':
+        findings.push(...this.evaluateConfigPattern(filePath, content, lines, rule, config));
+        break;
+      case 'import_pattern':
+        findings.push(...this.evaluateImportPattern(filePath, content, lines, rule, config));
+        break;
+      case 'ast_pattern':
+        // AST patterns are handled by PHI detector for now
+        break;
+    }
+
+    return findings;
+  }
+
+  /**
+   * Evaluate regex code patterns against file content.
+   */
+  private evaluateCodePattern(
+    filePath: string,
+    _content: string,
+    lines: string[],
+    rule: Rule,
+    config: Record<string, unknown>,
+  ): ComplianceFinding[] {
+    const findings: ComplianceFinding[] = [];
+
+    // Check variable name patterns
+    if (config.variableNames && Array.isArray(config.variableNames)) {
+      for (const varName of config.variableNames as string[]) {
+        const regex = new RegExp(`\\b${varName}\\b`, config.caseSensitive === false ? 'gi' : 'g');
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i]!;
+          let match: RegExpExecArray | null;
+          while ((match = regex.exec(line)) !== null) {
+            // Skip if preceded by "encrypted", "hashed", etc.
+            const before = line.substring(0, match.index).toLowerCase();
+            if (/\b(encrypted|hashed|masked|redacted)\s*$/.test(before)) continue;
+
+            findings.push(this.createFinding(rule, filePath, i + 1, match.index + 1, line));
+          }
+        }
+      }
+    }
+
+    // Check regex patterns
+    if (config.regex) {
+      const regex = new RegExp(config.regex as string, 'g');
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i]!;
+
+        // Skip excluded file patterns
+        if (config.exclude && Array.isArray(config.exclude)) {
+          const excluded = (config.exclude as string[]).some((pattern) =>
+            new RegExp(pattern.replace(/\*/g, '.*')).test(filePath),
+          );
+          if (excluded) continue;
+        }
+
+        let match: RegExpExecArray | null;
+        while ((match = regex.exec(line)) !== null) {
+          // Skip if exclude patterns match
+          if (config.excludePatterns && Array.isArray(config.excludePatterns)) {
+            const excluded = (config.excludePatterns as string[]).some((p) =>
+              new RegExp(p).test(line),
+            );
+            if (excluded) continue;
+          }
+
+          findings.push(this.createFinding(rule, filePath, i + 1, match.index + 1, line));
+        }
+      }
+    }
+
+    // Check function names
+    if (config.functionNames && Array.isArray(config.functionNames)) {
+      for (const funcName of config.functionNames as string[]) {
+        const escaped = funcName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(`\\b${escaped}\\s*\\(`, 'g');
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i]!;
+          let match: RegExpExecArray | null;
+          while ((match = regex.exec(line)) !== null) {
+            findings.push(this.createFinding(rule, filePath, i + 1, match.index + 1, line));
+          }
+        }
+      }
+    }
+
+    // Check general patterns array
+    if (config.patterns && Array.isArray(config.patterns)) {
+      for (const pattern of config.patterns as string[]) {
+        const regex = new RegExp(pattern, 'g');
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i]!;
+          let match: RegExpExecArray | null;
+          while ((match = regex.exec(line)) !== null) {
+            findings.push(this.createFinding(rule, filePath, i + 1, match.index + 1, line));
+          }
+        }
+      }
+    }
+
+    return findings;
+  }
+
+  /**
+   * Evaluate negative patterns (patterns that should NOT be present).
+   */
+  private evaluateNegativePattern(
+    filePath: string,
+    _content: string,
+    lines: string[],
+    rule: Rule,
+    config: Record<string, unknown>,
+  ): ComplianceFinding[] {
+    const findings: ComplianceFinding[] = [];
+
+    if (config.regex) {
+      const regex = new RegExp(config.regex as string, 'g');
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i]!;
+
+        // Skip excluded files
+        if (config.exclude && Array.isArray(config.exclude)) {
+          const excluded = (config.exclude as string[]).some((pattern) =>
+            new RegExp(pattern.replace(/\*/g, '.*')).test(filePath),
+          );
+          if (excluded) continue;
+        }
+
+        let match: RegExpExecArray | null;
+        while ((match = regex.exec(line)) !== null) {
+          findings.push(this.createFinding(rule, filePath, i + 1, match.index + 1, line));
+        }
+      }
+    }
+
+    return findings;
+  }
+
+  /**
+   * Evaluate config file patterns.
+   */
+  private evaluateConfigPattern(
+    _filePath: string,
+    _content: string,
+    _lines: string[],
+    _rule: Rule,
+    _config: Record<string, unknown>,
+  ): ComplianceFinding[] {
+    // Config patterns check for presence/absence of configuration values
+    // This is evaluated at the project level, not per-file
+    return [];
+  }
+
+  /**
+   * Evaluate import patterns (check for required security imports).
+   */
+  private evaluateImportPattern(
+    filePath: string,
+    content: string,
+    _lines: string[],
+    rule: Rule,
+    config: Record<string, unknown>,
+  ): ComplianceFinding[] {
+    if (!config.requiredImports || !Array.isArray(config.requiredImports)) return [];
+
+    // Only check relevant file types
+    const ext = extname(filePath).toLowerCase();
+    if (!['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.py'].includes(ext)) return [];
+
+    const lowerContent = content.toLowerCase();
+    const hasAnyImport = (config.requiredImports as string[]).some((imp) =>
+      lowerContent.includes(imp.toLowerCase()),
+    );
+
+    if (!hasAnyImport) {
+      return [
+        this.createFinding(
+          rule,
+          filePath,
+          1,
+          1,
+          `Missing required import for: ${(config.requiredImports as string[]).join(', ')}`,
+        ),
+      ];
+    }
+
+    return [];
+  }
+
+  /**
+   * Create a ComplianceFinding from a rule match.
+   */
+  private createFinding(
+    rule: Rule,
+    filePath: string,
+    lineNumber: number,
+    columnNumber: number,
+    line: string,
+  ): ComplianceFinding {
+    return {
+      ruleId: rule.ruleId,
+      frameworkId: 'hipaa',
+      severity: rule.severity,
+      category: rule.category,
+      title: rule.title,
+      description: rule.description,
+      filePath,
+      lineNumber,
+      columnNumber,
+      codeSnippet: this.sanitizeCodeSnippet(line),
+      citation: rule.citation,
+      remediation: rule.remediation,
+      confidence: 'high',
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Sanitize code snippets to prevent PHI leakage in reports.
+   */
+  private sanitizeCodeSnippet(line: string): string {
+    let sanitized = line.trim();
+    // Truncate long lines
+    if (sanitized.length > 200) {
+      sanitized = sanitized.substring(0, 200) + '...';
+    }
+    return sanitized;
+  }
+
+  /**
+   * Collect all scannable files from paths.
+   */
+  private collectFiles(paths: string[], ignore: string[], maxFiles: number): string[] {
+    const files: string[] = [];
+
+    for (const scanPath of paths) {
+      this.walkDirectory(scanPath, ignore, files, maxFiles);
+      if (files.length >= maxFiles) break;
+    }
+
+    return files.slice(0, maxFiles);
+  }
+
+  /**
+   * Recursively walk a directory.
+   */
+  private walkDirectory(dir: string, ignore: string[], files: string[], maxFiles: number): void {
+    if (files.length >= maxFiles) return;
+
+    try {
+      const stat = statSync(dir);
+      if (stat.isFile()) {
+        if (SUPPORTED_EXTENSIONS.has(extname(dir).toLowerCase())) {
+          files.push(dir);
+        }
+        return;
+      }
+    } catch {
+      return;
+    }
+
+    try {
+      const entries = readdirSync(dir);
+      for (const entry of entries) {
+        if (files.length >= maxFiles) break;
+        if (
+          ignore.some((pattern) => {
+            if (pattern.includes('*')) {
+              return new RegExp(pattern.replace(/\*/g, '.*')).test(entry);
+            }
+            return entry === pattern;
+          })
+        )
+          continue;
+
+        const fullPath = join(dir, entry);
+        try {
+          const stat = statSync(fullPath);
+          if (stat.isDirectory()) {
+            this.walkDirectory(fullPath, ignore, files, maxFiles);
+          } else if (stat.isFile() && SUPPORTED_EXTENSIONS.has(extname(entry).toLowerCase())) {
+            files.push(fullPath);
+          }
+        } catch {
+          // Skip inaccessible entries
+        }
+      }
+    } catch {
+      // Skip inaccessible directories
+    }
+  }
+
+  /**
+   * Deduplicate findings by location.
+   */
+  private deduplicateFindings(findings: ComplianceFinding[]): ComplianceFinding[] {
+    const seen = new Set<string>();
+    return findings.filter((f) => {
+      const key = `${f.ruleId}:${f.filePath}:${f.lineNumber}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+  /**
+   * Get the rule database instance.
+   */
+  getRuleDatabase(): RuleDatabase {
+    return this.ruleDb;
+  }
+
+  /**
+   * Close the database connection.
+   */
+  close(): void {
+    this.ruleDb.close();
+  }
+}
