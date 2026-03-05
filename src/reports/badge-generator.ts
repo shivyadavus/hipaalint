@@ -23,7 +23,7 @@ export function generateBadgeUrl(score: ComplianceScore): string {
   const label = 'HipaaLint';
   const message = `${score.overallScore}%2F100 · ${BAND_LABELS[score.band]}`;
 
-  return `https://img.shields.io/badge/${encodeURIComponent(label)}-${message}-${color}?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZD0iTTEyIDFMMyA1djZjMCA1LjU1IDMuODQgMTAuNzQgOSAxMiA1LjE2LTEuMjYgOS02LjQ1IDktMTJWNWwtOS00eiIgZmlsbD0id2hpdGUiLz48L3N2Zz4=`;
+  return `https://img.shields.io/badge/${encodeURIComponent(label)}-${message}-${color}?style=for-the-badge`;
 }
 
 /**

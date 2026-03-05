@@ -1,6 +1,8 @@
 <div align="center">
 
-# HipaaLint AI
+<img src="assets/logo.svg" alt="hipaalint" height="56">
+
+<br><br>
 
 **Catch HIPAA violations before they ship.**
 

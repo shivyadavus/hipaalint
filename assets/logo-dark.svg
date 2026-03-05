@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 580 120" fill="none">
+  <!--
+    HipaaLint — Wordmark Logo (Dark Background Variant)
+    Font: Inter Black (900), tracking: -2
+  -->
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@900&amp;display=swap');
+  </style>
+  <text x="0" y="88"
+        font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif"
+        font-size="96" font-weight="900" letter-spacing="-3">
+    <tspan fill="#F4F4F5">hipaa</tspan><tspan fill="#22D3EE">lint</tspan>
+  </text>
+</svg>
