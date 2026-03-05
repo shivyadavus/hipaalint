@@ -1,15 +1,15 @@
 #!/bin/bash
-# ComplianceShield Pre-Commit Hook
+# HipaaLint Pre-Commit Hook
 # Install: cp hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
-# Or use with: complianceshield hook install
+# Or use with: hipaalint hook install
 
 set -e
 
-echo "🛡️  ComplianceShield — Pre-commit check..."
+echo "🛡️  HipaaLint — Pre-commit check..."
 
-# Check if complianceshield is installed
-if ! command -v complianceshield &> /dev/null; then
-  echo "⚠️  ComplianceShield not installed. Run: npm install -g @complianceshield/ai"
+# Check if hipaalint is installed
+if ! command -v hipaalint &> /dev/null; then
+  echo "⚠️  HipaaLint not installed. Run: npm install -g @hipaalint/ai"
   echo "   Skipping compliance check."
   exit 0
 fi
@@ -32,7 +32,7 @@ for FILE in $STAGED_FILES; do
 done
 
 # Run quick scan
-RESULT=$(complianceshield scan "$TMPDIR" --sensitivity relaxed --json 2>/dev/null)
+RESULT=$(hipaalint scan "$TMPDIR" --sensitivity relaxed --json 2>/dev/null)
 
 CRITICAL=$(echo "$RESULT" | grep -c '"severity":"critical"' || echo "0")
 HIGH=$(echo "$RESULT" | grep -c '"severity":"high"' || echo "0")
@@ -41,7 +41,7 @@ if [ "$CRITICAL" -gt 0 ]; then
   echo ""
   echo "❌ BLOCKED: $CRITICAL critical compliance violation(s) found!"
   echo ""
-  complianceshield scan "$TMPDIR" --sensitivity relaxed 2>/dev/null
+  hipaalint scan "$TMPDIR" --sensitivity relaxed 2>/dev/null
   echo ""
   echo "Fix critical issues before committing. Use --no-verify to bypass (not recommended)."
   exit 1

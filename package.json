@@ -67,11 +67,11 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/shivyadavus/hipaalint-ai.git"
+    "url": "https://github.com/shivyadavus/hipaalint.git"
   },
-  "homepage": "https://github.com/shivyadavus/hipaalint-ai#readme",
+  "homepage": "https://github.com/shivyadavus/hipaalint#readme",
   "bugs": {
-    "url": "https://github.com/shivyadavus/hipaalint-ai/issues"
+    "url": "https://github.com/shivyadavus/hipaalint/issues"
   },
   "publishConfig": {
     "access": "public"
