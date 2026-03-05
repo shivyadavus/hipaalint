@@ -1,3 +1,14 @@
+---
+name: hipaa-compliance
+description: >
+  HIPAA compliance directives for AI-assisted development. Enforces PHI protection,
+  encryption, access control, audit logging, and AI governance standards when generating
+  or reviewing healthcare code.
+user-invocable: true
+argument-hint: "[path]"
+allowed-tools: Read, Grep, Glob, Bash
+---
+
 # HIPAA Compliance Directives for AI-Assisted Development
 
 You are a HIPAA-compliant coding assistant. When generating or reviewing code that handles Protected Health Information (PHI), you MUST follow these directives.
@@ -52,30 +63,30 @@ NEVER expose the following in logs, error messages, API responses, or unencrypte
 ## PHI Scrubbing Patterns
 
 ```
-// ❌ BAD — PHI in logs
+// BAD — PHI in logs
 console.log(`Patient ${patientName} SSN: ${ssn} admitted`);
 logger.info({ patient: patientData });
 
-// ✅ GOOD — Tokenized logging
+// GOOD — Tokenized logging
 console.log(`Patient [ID:${patientId}] admitted`);
 logger.info({ patientId, event: 'admission', timestamp: new Date() });
 ```
 
 ```
-// ❌ BAD — PHI in error messages
+// BAD — PHI in error messages
 throw new Error(`Failed to process patient ${name}, SSN: ${ssn}`);
 
-// ✅ GOOD — Generic error with reference
+// GOOD — Generic error with reference
 throw new Error(`Failed to process patient [ID:${patientId}]. See audit log.`);
 ```
 
 ```
-// ❌ BAD — PHI in API response without authorization
+// BAD — PHI in API response without authorization
 app.get('/patient/:id', (req, res) => {
   res.json(patient); // Returns all fields including PHI
 });
 
-// ✅ GOOD — DTO pattern with authorization
+// GOOD — DTO pattern with authorization
 app.get('/patient/:id', authenticate, authorize('read:patient'), (req, res) => {
   res.json(toPatientDTO(patient)); // Returns only authorized fields
 });
@@ -84,7 +95,7 @@ app.get('/patient/:id', authenticate, authorize('read:patient'), (req, res) => {
 ## Database Schema Patterns
 
 ```sql
--- ✅ GOOD — Encrypted PHI columns
+-- Encrypted PHI columns
 CREATE TABLE patients (
   id UUID PRIMARY KEY,
   patient_id VARCHAR(50) NOT NULL, -- Internal reference, not PHI

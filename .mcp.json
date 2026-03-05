@@ -3,7 +3,7 @@
         "hipaalint-ai": {
             "command": "node",
             "args": [
-                "dist/mcp-server/index.js"
+                "${CLAUDE_PLUGIN_ROOT}/dist/mcp-server/index.js"
             ],
             "env": {}
         }

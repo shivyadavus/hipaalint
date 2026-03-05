@@ -1,27 +1,29 @@
 {
-    "name": "hipaalint-ai",
-    "version": "1.0.0",
-    "description": "Catch HIPAA violations before they ship — PHI detection, compliance scoring, and audit reports",
-    "author": "Shiv Yadav",
-    "license": "Apache-2.0",
-    "repository": "https://github.com/shivyadavus/hipaalint-ai",
-    "homepage": "https://github.com/shivyadavus/hipaalint-ai#readme",
-    "keywords": [
-        "hipaa",
-        "compliance",
-        "healthcare",
-        "phi-detection",
-        "security"
-    ],
-    "skills": [
-        "skills/hipaa-compliance.md"
-    ],
-    "commands": [
-        "commands/scan.md",
-        "commands/report.md"
-    ],
-    "agents": [
-        "agents/compliance-reviewer.md"
-    ],
-    "mcp": "../.mcp.json"
+  "name": "hipaalint-ai",
+  "version": "1.0.0",
+  "description": "Catch HIPAA violations before they ship — PHI detection, compliance scoring, and audit reports",
+  "author": {
+    "name": "Shiv Yadav",
+    "url": "https://github.com/shivyadavus"
+  },
+  "license": "Apache-2.0",
+  "repository": "https://github.com/shivyadavus/hipaalint",
+  "homepage": "https://github.com/shivyadavus/hipaalint#readme",
+  "keywords": [
+    "hipaa",
+    "compliance",
+    "healthcare",
+    "phi-detection",
+    "security",
+    "audit"
+  ],
+  "skills": [
+    "./skills/hipaa-compliance",
+    "./skills/scan",
+    "./skills/report"
+  ],
+  "agents": [
+    "./agents/compliance-reviewer.md"
+  ],
+  "mcpServers": "./.mcp.json"
 }

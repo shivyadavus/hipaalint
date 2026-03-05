@@ -25,9 +25,11 @@
     "dist/",
     "src/rules/db/*.sql",
     "skills/",
-    "commands/",
     "agents/",
     ".claude-plugin/",
+    ".mcp.json",
+    "assets/logo.svg",
+    "assets/logo-dark.svg",
     "AGENTS.md",
     "action/action.yml",
     "hooks/"

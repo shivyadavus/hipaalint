@@ -1,0 +1,22 @@
+{
+  "name": "hipaalint-marketplace",
+  "owner": {
+    "name": "Shiv Yadav",
+    "url": "https://github.com/shivyadavus"
+  },
+  "metadata": {
+    "description": "HIPAA compliance enforcement tools for AI-assisted development",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "hipaalint-ai",
+      "source": ".",
+      "description": "Catch HIPAA violations before they ship — PHI detection, compliance scoring, and audit reports",
+      "version": "1.0.0",
+      "author": {
+        "name": "Shiv Yadav"
+      }
+    }
+  ]
+}
