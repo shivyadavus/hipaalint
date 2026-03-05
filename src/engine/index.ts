@@ -5,4 +5,6 @@ export { ScoreCalculator } from './score-calculator.js';
 export { RegexCache } from './regex-cache.js';
 export { countFindings } from './finding-counter.js';
 export type { FindingCounts } from './finding-counter.js';
+export { AutoFixer, getFixableRuleIds } from './auto-fixer.js';
+export type { FixResult, FixSummary } from './auto-fixer.js';
 export * from './types.js';

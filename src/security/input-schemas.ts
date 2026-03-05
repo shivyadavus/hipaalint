@@ -10,6 +10,8 @@ export const ScanOptionsSchema = z.object({
   sensitivity: SensitivityLevel.default('balanced'),
   json: z.boolean().optional(),
   sarif: z.boolean().optional(),
+  fix: z.boolean().optional(),
+  dryRun: z.boolean().optional(),
   maxFiles: z
     .string()
     .regex(/^\d+$/, 'maxFiles must be a positive integer')

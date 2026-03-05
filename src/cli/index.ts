@@ -4,6 +4,7 @@ import { Command } from 'commander';
 import { z } from 'zod';
 import { RuleEvaluator } from '../engine/rule-evaluator.js';
 import { ScoreCalculator } from '../engine/score-calculator.js';
+import { AutoFixer, getFixableRuleIds } from '../engine/auto-fixer.js';
 import { generateJsonReport, generateSarifReport } from '../reports/json-report.js';
 import { generatePdfReport } from '../reports/pdf-report.js';
 import { PHIDetector } from '../engine/phi-detector.js';
@@ -59,6 +60,8 @@ program
   .option('-s, --sensitivity <level>', 'Sensitivity: strict, balanced, relaxed', 'balanced')
   .option('--json', 'Output as JSON')
   .option('--sarif', 'Output as SARIF')
+  .option('--fix', 'Auto-fix simple violations (http→https, weak TLS, CORS wildcard)')
+  .option('--dry-run', 'Preview fixes without writing changes (requires --fix)')
   .option('--max-files <n>', 'Max files to scan', '10000')
   .action(async (path: string, options) => {
     let targetPath: string;
@@ -122,6 +125,44 @@ program
         console.log(`   📍 ${relPath}:${f.lineNumber}`);
         console.log(`   📋 ${f.citation}`);
         console.log(`   💡 ${f.remediation}\n`);
+      }
+
+      // Auto-fix if requested
+      if (validated.fix) {
+        const fixableFindings = result.findings.filter((f) => getFixableRuleIds().has(f.ruleId));
+
+        if (fixableFindings.length === 0) {
+          console.log(`🔧 No auto-fixable violations found.\n`);
+        } else {
+          const dryRun = validated.dryRun ?? false;
+          const fixer = new AutoFixer();
+          const fixResult = fixer.fix(fixableFindings, { dryRun });
+
+          if (dryRun) {
+            console.log(`🔧 Dry Run — ${fixResult.totalFixed} fix(es) would be applied:\n`);
+          } else {
+            console.log(`🔧 Applied ${fixResult.totalFixed} auto-fix(es):\n`);
+          }
+
+          for (const fix of fixResult.applied) {
+            const relPath = fix.filePath.replace(targetPath + '/', '');
+            console.log(`   ✅ ${fix.ruleId} — ${relPath}:${fix.lineNumber}`);
+            console.log(`      ${fix.description}`);
+            console.log(`      - ${fix.originalLine.trim()}`);
+            console.log(`      + ${fix.fixedLine.trim()}\n`);
+          }
+
+          if (fixResult.totalSkipped > 0) {
+            const unfixable = fixResult.skipped.filter(
+              (s) => s.reason === 'No auto-fix available for this rule',
+            );
+            if (unfixable.length > 0) {
+              console.log(
+                `   ℹ️  ${unfixable.length} finding(s) require manual remediation (no auto-fix)\n`,
+              );
+            }
+          }
+        }
       }
 
       // Set exit code if critical findings exist
