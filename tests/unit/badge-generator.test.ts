@@ -88,7 +88,7 @@ describe('Badge Generator', () => {
     it('should use # when no repo URL provided', () => {
       const score = createMockScore(85, 'compliant');
       const md = generateBadgeMarkdown(score);
-      expect(md).toContain('](#)') ;
+      expect(md).toContain('](#)');
     });
   });
 

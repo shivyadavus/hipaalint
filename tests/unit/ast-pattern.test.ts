@@ -49,10 +49,7 @@ describe('AST Pattern Evaluation', () => {
     });
 
     it('should flag log call with inline SSN pattern', () => {
-      writeFileSync(
-        join(FIXTURES_DIR, 'logging.ts'),
-        'console.log("SSN: 123-45-6789");\n',
-      );
+      writeFileSync(join(FIXTURES_DIR, 'logging.ts'), 'console.log("SSN: 123-45-6789");\n');
 
       const evaluator = new RuleEvaluator({ sensitivity: 'balanced' });
       try {
@@ -83,13 +80,7 @@ describe('AST Pattern Evaluation', () => {
     it('should detect PHI in multi-line log call', () => {
       writeFileSync(
         join(FIXTURES_DIR, 'logging.ts'),
-        [
-          'console.log(',
-          '  "Patient:",',
-          '  patientName,',
-          '  dateOfBirth',
-          ');',
-        ].join('\n'),
+        ['console.log(', '  "Patient:",', '  patientName,', '  dateOfBirth', ');'].join('\n'),
       );
 
       const evaluator = new RuleEvaluator({ sensitivity: 'balanced' });

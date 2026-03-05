@@ -411,12 +411,7 @@ describe('E2E: Full project scan', () => {
     expect(Object.keys(scoreData.domainScores).length).toBe(6);
 
     // Run report
-    const reportResult = await runCLI([
-      'report',
-      E2E_PROJECT,
-      '--output',
-      outputDir,
-    ]);
+    const reportResult = await runCLI(['report', E2E_PROJECT, '--output', outputDir]);
     expect(reportResult.exitCode).toBe(0);
     expect(reportResult.stdout).toContain('Report saved:');
   });
@@ -434,9 +429,7 @@ describe('E2E: Full project scan', () => {
     try {
       const result = evaluator.evaluate([E2E_PROJECT], 'hipaa');
       // No findings should come from node_modules
-      const nmFindings = result.findings.filter((f) =>
-        f.filePath.includes('node_modules'),
-      );
+      const nmFindings = result.findings.filter((f) => f.filePath.includes('node_modules'));
       expect(nmFindings.length).toBe(0);
     } finally {
       evaluator.close();

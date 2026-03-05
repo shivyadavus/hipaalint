@@ -809,8 +809,7 @@ export class RuleEvaluator {
             this.walkDirectory(fullPath, ignore, files, maxFiles, scanRoot);
           } else if (
             stat.isFile() &&
-            (SUPPORTED_EXTENSIONS.has(extname(entry).toLowerCase()) ||
-              isSupportedFilename(entry))
+            (SUPPORTED_EXTENSIONS.has(extname(entry).toLowerCase()) || isSupportedFilename(entry))
           ) {
             files.push(fullPath);
           }

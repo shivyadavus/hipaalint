@@ -91,10 +91,7 @@ describe('RuleEvaluator', () => {
 
     it('should deduplicate findings by location', () => {
       // A file that would trigger the same rule on the same line multiple times
-      writeFileSync(
-        join(FIXTURES_DIR, 'app.ts'),
-        'const secretKey = "abc123";\n',
-      );
+      writeFileSync(join(FIXTURES_DIR, 'app.ts'), 'const secretKey = "abc123";\n');
 
       const evaluator = new RuleEvaluator({ sensitivity: 'balanced' });
       try {

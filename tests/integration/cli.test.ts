@@ -120,12 +120,7 @@ describe('CLI: score', () => {
   });
 
   it('should exit 1 when score is below threshold', async () => {
-    const { stdout, exitCode } = await runCLI([
-      'score',
-      NON_COMPLIANT_DIR,
-      '--threshold',
-      '90',
-    ]);
+    const { stdout, exitCode } = await runCLI(['score', NON_COMPLIANT_DIR, '--threshold', '90']);
     expect(exitCode).toBe(1);
     expect(stdout).toContain('below threshold');
   });
@@ -146,12 +141,7 @@ describe('CLI: report', () => {
     const outputDir = join(INTEGRATION_TMP, 'report-cli-1');
     mkdirSync(outputDir, { recursive: true });
 
-    const { stdout, exitCode } = await runCLI([
-      'report',
-      NON_COMPLIANT_DIR,
-      '--output',
-      outputDir,
-    ]);
+    const { stdout, exitCode } = await runCLI(['report', NON_COMPLIANT_DIR, '--output', outputDir]);
     expect(exitCode).toBe(0);
     expect(stdout).toContain('Report saved:');
 
@@ -168,12 +158,7 @@ describe('CLI: report', () => {
     const outputDir = join(INTEGRATION_TMP, 'report-cli-default');
     mkdirSync(outputDir, { recursive: true });
 
-    const { stdout, exitCode } = await runCLI([
-      'report',
-      COMPLIANT_DIR,
-      '--output',
-      outputDir,
-    ]);
+    const { stdout, exitCode } = await runCLI(['report', COMPLIANT_DIR, '--output', outputDir]);
     expect(exitCode).toBe(0);
     expect(stdout).toContain('JSON');
 
@@ -204,10 +189,7 @@ describe('CLI: phi', () => {
   });
 
   it('should exit 0 for compliant fixture with no PHI', async () => {
-    const { stdout, exitCode } = await runCLI([
-      'phi',
-      join(COMPLIANT_DIR, 'healthcare-api.ts'),
-    ]);
+    const { stdout, exitCode } = await runCLI(['phi', join(COMPLIANT_DIR, 'healthcare-api.ts')]);
     expect(exitCode).toBe(0);
     expect(stdout).toContain('No PHI detected');
   });
@@ -245,12 +227,7 @@ describe('CLI: rules', () => {
   });
 
   it('should filter rules by category', async () => {
-    const { stdout, exitCode } = await runCLI([
-      'rules',
-      '--category',
-      'phi_protection',
-      '--json',
-    ]);
+    const { stdout, exitCode } = await runCLI(['rules', '--category', 'phi_protection', '--json']);
     expect(exitCode).toBe(0);
     const parsed = JSON.parse(stdout);
     expect(parsed.length).toBeGreaterThan(0);

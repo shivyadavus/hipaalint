@@ -4,7 +4,11 @@ import { PHIDetector } from '../../src/engine/phi-detector.js';
 import { ScoreCalculator } from '../../src/engine/score-calculator.js';
 import { generateJsonReport } from '../../src/reports/json-report.js';
 import type { ComplianceReport } from '../../src/engine/types.js';
-import { SecurityError, validateScanPath, validateOutputDirectory } from '../../src/security/index.js';
+import {
+  SecurityError,
+  validateScanPath,
+  validateOutputDirectory,
+} from '../../src/security/index.js';
 import { existsSync, mkdirSync, rmSync, readFileSync } from 'fs';
 import { resolve, dirname, basename, join } from 'path';
 import { fileURLToPath } from 'url';
@@ -151,9 +155,7 @@ describe('MCP Tool: compliance_score pipeline', () => {
       const calculator = new ScoreCalculator();
       const compliantScore = calculator.calculateScore(compliantResult, 'hipaa', 'balanced');
       const nonCompliantScore = calculator.calculateScore(nonCompliantResult, 'hipaa', 'balanced');
-      expect(compliantScore.overallScore).toBeGreaterThanOrEqual(
-        nonCompliantScore.overallScore,
-      );
+      expect(compliantScore.overallScore).toBeGreaterThanOrEqual(nonCompliantScore.overallScore);
       expect(compliantScore.overallScore).toBeGreaterThan(0);
       expect(compliantScore.overallScore).toBeLessThanOrEqual(100);
     } finally {
@@ -296,8 +298,7 @@ describe('MCP Tool: phi_detect pipeline', () => {
   it('should detect more in strict than relaxed mode', () => {
     const strict = new PHIDetector({ sensitivity: 'strict' });
     const relaxed = new PHIDetector({ sensitivity: 'relaxed' });
-    const code =
-      'const patientName = "John"; console.log(`Processing ${patientName}`);';
+    const code = 'const patientName = "John"; console.log(`Processing ${patientName}`);';
     const strictFindings = strict.detect(code, 'api.ts');
     const relaxedFindings = relaxed.detect(code, 'api.ts');
     expect(strictFindings.length).toBeGreaterThanOrEqual(relaxedFindings.length);
