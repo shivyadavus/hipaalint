@@ -6,6 +6,8 @@
 
 **Catch HIPAA violations before they ship.**
 
+[![npm version](https://img.shields.io/npm/v/%40hipaalint%2Fai.svg)](https://www.npmjs.com/package/@hipaalint/ai)
+[![CI](https://github.com/shivyadavus/hipaalint/actions/workflows/ci.yml/badge.svg)](https://github.com/shivyadavus/hipaalint/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-18%2B-green.svg)](https://nodejs.org/)
@@ -303,7 +305,7 @@ All mapped to specific provisions under **45 CFR §164.514(b)(2)**.
 
 ## Contributing
 
-Contributions are welcome! Please read our [AGENTS.md](./AGENTS.md) for coding guidelines that apply to both human and AI contributors.
+Contributions are welcome! See [CONTRIBUTING.md](./CONTRIBUTING.md) to get started and [AGENTS.md](./AGENTS.md) for coding standards.
 
 ## License
 
