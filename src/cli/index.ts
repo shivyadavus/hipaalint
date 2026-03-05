@@ -74,11 +74,15 @@ program
     }
 
     const sensitivity = validated.sensitivity;
+    const jsonOutput = validated.json;
+    const sarifOutput = validated.sarif;
 
-    console.log(`\n🛡️  HipaaLint AI — Scanning...\n`);
-    console.log(`   Path: ${targetPath}`);
-    console.log(`   Framework: ${validated.framework}`);
-    console.log(`   Sensitivity: ${sensitivity}\n`);
+    if (!jsonOutput && !sarifOutput) {
+      console.log(`\n🛡️  HipaaLint AI — Scanning...\n`);
+      console.log(`   Path: ${targetPath}`);
+      console.log(`   Framework: ${validated.framework}`);
+      console.log(`   Sensitivity: ${sensitivity}\n`);
+    }
 
     const evaluator = new RuleEvaluator({ sensitivity });
     try {
@@ -86,7 +90,7 @@ program
         maxFiles: validated.maxFiles,
       });
 
-      if (validated.json) {
+      if (jsonOutput) {
         console.log(JSON.stringify(result, null, 2));
         return;
       }

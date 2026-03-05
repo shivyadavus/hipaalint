@@ -7,13 +7,13 @@ HipaaLint AI is a HIPAA compliance enforcement tool for AI-assisted development.
 ## Architecture
 
 Three-layer architecture:
-1. **Layer 1 — Plugin/Skills** (`skills/`, `commands/`, `agents/`) — Directives for AI agents
+1. **Layer 1 — Plugin/Skills** (`skills/`, `agents/`) — Directives for AI agents
 2. **Layer 2 — MCP Server** (`src/mcp-server/`) — 5 tools exposed via Model Context Protocol
 3. **Layer 3 — Engine** (`src/engine/`) — PHI detector, rule evaluator, score calculator
 
 ## Tech Stack
 
-- **Language**: TypeScript 5.7, Node.js 20+
+- **Language**: TypeScript 5.7, Node.js 18+
 - **Build**: tsc with Node16 module resolution
 - **Database**: SQLite via better-sqlite3
 - **Validation**: Zod schemas

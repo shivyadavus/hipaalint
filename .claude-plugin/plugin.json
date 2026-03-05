@@ -20,7 +20,10 @@
   "skills": [
     "./skills/hipaa-compliance",
     "./skills/scan",
-    "./skills/report"
+    "./skills/score",
+    "./skills/report",
+    "./skills/phi",
+    "./skills/rules"
   ],
   "agents": [
     "./agents/compliance-reviewer.md"

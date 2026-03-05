@@ -39,7 +39,7 @@
   },
   "scripts": {
     "build": "tsc && npm run copy-assets",
-    "copy-assets": "cp -r src/rules/db dist/rules/db 2>/dev/null || true",
+    "copy-assets": "node scripts/copy-assets.mjs",
     "dev": "tsx watch src/mcp-server/index.ts",
     "start": "node dist/mcp-server/index.js",
     "cli": "tsx src/cli/index.ts",
