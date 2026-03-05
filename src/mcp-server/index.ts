@@ -9,6 +9,7 @@ import { ScoreCalculator } from '../engine/score-calculator.js';
 import { generateJsonReport } from '../reports/json-report.js';
 import { generatePdfReport } from '../reports/pdf-report.js';
 import type { ComplianceFinding, ComplianceReport } from '../engine/types.js';
+import { countFindings } from '../engine/finding-counter.js';
 import { randomUUID } from 'crypto';
 import { basename } from 'path';
 import {
@@ -243,29 +244,35 @@ async function handleScan(args: Record<string, unknown>) {
   try {
     const result = evaluator.evaluate([path], validated.framework);
 
-    // Format output
-    const criticals = result.findings.filter((f) => f.severity === 'critical');
-    const highs = result.findings.filter((f) => f.severity === 'high');
-    const mediums = result.findings.filter((f) => f.severity === 'medium');
-    const lows = result.findings.filter((f) => f.severity === 'low');
+    // Format output using single-pass counting
+    const counts = countFindings(result.findings);
+
+    // Group findings by severity for detailed output
+    const bySev = new Map<string, ComplianceFinding[]>();
+    for (const f of result.findings) {
+      const existing = bySev.get(f.severity) || [];
+      existing.push(f);
+      bySev.set(f.severity, existing);
+    }
 
     let output = `# HipaaLint Scan Results\n\n`;
     output += `**Files scanned**: ${result.filesScanned} | **Rules evaluated**: ${result.rulesEvaluated} | **Duration**: ${result.scanDurationMs}ms\n\n`;
     output += `## Summary\n`;
-    output += `- 🔴 Critical: ${criticals.length}\n`;
-    output += `- 🟠 High: ${highs.length}\n`;
-    output += `- 🟡 Medium: ${mediums.length}\n`;
-    output += `- 🔵 Low: ${lows.length}\n\n`;
+    output += `- 🔴 Critical: ${counts.bySeverity.critical}\n`;
+    output += `- 🟠 High: ${counts.bySeverity.high}\n`;
+    output += `- 🟡 Medium: ${counts.bySeverity.medium}\n`;
+    output += `- 🔵 Low: ${counts.bySeverity.low}\n\n`;
 
     if (result.findings.length === 0) {
       output += `✅ No compliance violations found!\n`;
     } else {
-      for (const [label, icon, findings] of [
-        ['Critical', '🔴', criticals],
-        ['High', '🟠', highs],
-        ['Medium', '🟡', mediums],
-        ['Low', '🔵', lows],
+      for (const [label, icon, severity] of [
+        ['Critical', '🔴', 'critical'],
+        ['High', '🟠', 'high'],
+        ['Medium', '🟡', 'medium'],
+        ['Low', '🔵', 'low'],
       ] as const) {
+        const findings = bySev.get(severity) || [];
         if (findings.length > 0) {
           output += `### ${icon} ${label} (${findings.length})\n\n`;
           for (const f of findings) {
@@ -353,6 +360,7 @@ async function handleReport(args: Record<string, unknown>) {
     const calculator = new ScoreCalculator();
     const score = calculator.calculateScore(result, validated.framework, validated.sensitivity);
 
+    const reportCounts = countFindings(result.findings);
     const report: ComplianceReport = {
       id: randomUUID(),
       version: '0.1.0',
@@ -362,22 +370,9 @@ async function handleReport(args: Record<string, unknown>) {
       score,
       findings: result.findings,
       summary: {
-        totalFindings: result.findings.length,
-        bySeverity: {
-          critical: result.findings.filter((f) => f.severity === 'critical').length,
-          high: result.findings.filter((f) => f.severity === 'high').length,
-          medium: result.findings.filter((f) => f.severity === 'medium').length,
-          low: result.findings.filter((f) => f.severity === 'low').length,
-          info: result.findings.filter((f) => f.severity === 'info').length,
-        },
-        byCategory: {
-          phi_protection: result.findings.filter((f) => f.category === 'phi_protection').length,
-          encryption: result.findings.filter((f) => f.category === 'encryption').length,
-          access_control: result.findings.filter((f) => f.category === 'access_control').length,
-          audit_logging: result.findings.filter((f) => f.category === 'audit_logging').length,
-          infrastructure: result.findings.filter((f) => f.category === 'infrastructure').length,
-          ai_governance: result.findings.filter((f) => f.category === 'ai_governance').length,
-        },
+        totalFindings: reportCounts.total,
+        bySeverity: reportCounts.bySeverity,
+        byCategory: reportCounts.byCategory,
       },
       recommendations: generateRecommendations(result.findings),
       metadata: {

@@ -122,11 +122,27 @@ export class ScoreCalculator {
     totalCheckpoints: number,
     weight: number,
   ): DomainScore {
-    // Count findings by severity
-    const critical = findings.filter((f) => f.severity === 'critical').length;
-    const high = findings.filter((f) => f.severity === 'high').length;
-    const medium = findings.filter((f) => f.severity === 'medium').length;
-    const low = findings.filter((f) => f.severity === 'low').length;
+    // Count findings by severity (single-pass)
+    let critical = 0;
+    let high = 0;
+    let medium = 0;
+    let low = 0;
+    for (const f of findings) {
+      switch (f.severity) {
+        case 'critical':
+          critical++;
+          break;
+        case 'high':
+          high++;
+          break;
+        case 'medium':
+          medium++;
+          break;
+        case 'low':
+          low++;
+          break;
+      }
+    }
 
     // Weighted penalties: critical findings count more than low
     const penaltyScore =

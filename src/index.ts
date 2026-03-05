@@ -4,6 +4,9 @@
 export { PHIDetector } from './engine/phi-detector.js';
 export { RuleEvaluator } from './engine/rule-evaluator.js';
 export { ScoreCalculator } from './engine/score-calculator.js';
+export { RegexCache } from './engine/regex-cache.js';
+export { countFindings } from './engine/finding-counter.js';
+export type { FindingCounts } from './engine/finding-counter.js';
 export { RuleDatabase } from './rules/rule-loader.js';
 export { generateJsonReport, generateSarifReport } from './reports/json-report.js';
 export { generatePdfReport } from './reports/pdf-report.js';

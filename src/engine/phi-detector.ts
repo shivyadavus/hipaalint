@@ -215,6 +215,22 @@ const PHI_VARIABLE_PATTERNS: Array<{
   },
 ];
 
+// Pre-compiled variable name regexes (computed once at module load)
+const COMPILED_VAR_PATTERNS: Array<{
+  type: PHIIdentifierType;
+  regexes: Array<{ name: string; regex: RegExp }>;
+  confidence: 'high' | 'medium' | 'low';
+  citation: string;
+}> = PHI_VARIABLE_PATTERNS.map((vp) => ({
+  type: vp.type,
+  regexes: vp.names.map((name) => ({
+    name,
+    regex: new RegExp(`\\b${name}\\b`, 'g'),
+  })),
+  confidence: vp.confidence,
+  citation: vp.citation,
+}));
+
 // Log function names to check for PHI in arguments
 const LOG_FUNCTIONS = new Set([
   'console.log',
@@ -306,10 +322,10 @@ export class PHIDetector {
       for (const pattern of PHI_PATTERNS) {
         if (this.shouldSkipPattern(pattern, context)) continue;
 
-        const regex = new RegExp(pattern.regex.source, pattern.regex.flags);
+        pattern.regex.lastIndex = 0;
         let match: RegExpExecArray | null;
 
-        while ((match = regex.exec(line)) !== null) {
+        while ((match = pattern.regex.exec(line)) !== null) {
           if (this.isExcluded(match[0], line, pattern.excludePatterns)) continue;
 
           findings.push({
@@ -325,10 +341,10 @@ export class PHIDetector {
         }
       }
 
-      // 2. Check variable name patterns
-      for (const varPattern of PHI_VARIABLE_PATTERNS) {
-        for (const name of varPattern.names) {
-          const nameRegex = new RegExp(`\\b${name}\\b`, 'g');
+      // 2. Check variable name patterns (pre-compiled)
+      for (const varPattern of COMPILED_VAR_PATTERNS) {
+        for (const { name, regex: nameRegex } of varPattern.regexes) {
+          nameRegex.lastIndex = 0;
           let match: RegExpExecArray | null;
 
           while ((match = nameRegex.exec(line)) !== null) {
@@ -361,6 +377,7 @@ export class PHIDetector {
    */
   containsPHI(text: string): boolean {
     for (const pattern of PHI_PATTERNS) {
+      pattern.regex.lastIndex = 0;
       if (pattern.regex.test(text)) return true;
     }
     return false;

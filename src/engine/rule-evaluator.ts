@@ -1,8 +1,8 @@
 import type { ComplianceFinding, Rule, ScanResult, SensitivityLevel } from './types.js';
 import { PHIDetector } from './phi-detector.js';
+import { RegexCache } from './regex-cache.js';
 import { RuleDatabase } from '../rules/rule-loader.js';
-import { validateScanPath, isSymlink } from '../security/index.js';
-import { createSafeRegex } from '../security/regex-safety.js';
+import { validateScanPath } from '../security/index.js';
 import { readFileSync, readdirSync, lstatSync } from 'fs';
 import { join, extname, basename } from 'path';
 
@@ -57,12 +57,31 @@ export class RuleEvaluator {
   private phiDetector: PHIDetector;
   private ruleDb: RuleDatabase;
   private sensitivity: SensitivityLevel;
+  private regexCache: RegexCache;
+  private parsedConfigCache = new Map<string, Record<string, unknown>>();
 
   constructor(options: { dbPath?: string; sensitivity?: SensitivityLevel } = {}) {
     this.sensitivity = options.sensitivity ?? 'balanced';
     this.phiDetector = new PHIDetector({ sensitivity: this.sensitivity });
     this.ruleDb = new RuleDatabase(options.dbPath);
     this.ruleDb.initialize();
+    this.regexCache = new RegexCache();
+  }
+
+  /**
+   * Get parsed config for a rule, with memoization.
+   */
+  private getParsedConfig(rule: Rule): Record<string, unknown> | null {
+    const cached = this.parsedConfigCache.get(rule.ruleId);
+    if (cached !== undefined) return cached;
+
+    try {
+      const config = JSON.parse(rule.patternConfig) as Record<string, unknown>;
+      this.parsedConfigCache.set(rule.ruleId, config);
+      return config;
+    } catch {
+      return null;
+    }
   }
 
   /**
@@ -144,13 +163,10 @@ export class RuleEvaluator {
 
     // 2. Evaluate code pattern rules
     for (const rule of rules) {
-      try {
-        const config = JSON.parse(rule.patternConfig);
-        const ruleFindings = this.evaluateRule(filePath, content, lines, rule, config);
-        findings.push(...ruleFindings);
-      } catch {
-        // Skip rules with invalid config
-      }
+      const config = this.getParsedConfig(rule);
+      if (!config) continue;
+      const ruleFindings = this.evaluateRule(filePath, content, lines, rule, config);
+      findings.push(...ruleFindings);
     }
 
     return findings;
@@ -204,9 +220,11 @@ export class RuleEvaluator {
     // Check variable name patterns
     if (config.variableNames && Array.isArray(config.variableNames)) {
       for (const varName of config.variableNames as string[]) {
-        const regex = new RegExp(`\\b${varName}\\b`, config.caseSensitive === false ? 'gi' : 'g');
+        const flags = config.caseSensitive === false ? 'gi' : 'g';
+        const regex = this.regexCache.get(`\\b${varName}\\b`, flags);
         for (let i = 0; i < lines.length; i++) {
           const line = lines[i]!;
+          regex.lastIndex = 0;
           let match: RegExpExecArray | null;
           while ((match = regex.exec(line)) !== null) {
             // Skip if preceded by "encrypted", "hashed", etc.
@@ -226,21 +244,22 @@ export class RuleEvaluator {
         const fileName = basename(filePath);
         const excluded = (config.exclude as string[]).some((pattern) => {
           const escaped = pattern.replace(/\./g, '\\.').replace(/\*/g, '.*');
-          return createSafeRegex(`^${escaped}$`).test(fileName);
+          return this.regexCache.getSafe(`^${escaped}$`).test(fileName);
         });
         if (excluded) return findings;
       }
 
-      const regex = createSafeRegex(config.regex as string, 'g');
+      const regex = this.regexCache.getSafe(config.regex as string, 'g');
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i]!;
+        regex.lastIndex = 0;
 
         let match: RegExpExecArray | null;
         while ((match = regex.exec(line)) !== null) {
           // Skip if exclude patterns match
           if (config.excludePatterns && Array.isArray(config.excludePatterns)) {
             const excluded = (config.excludePatterns as string[]).some((p) =>
-              createSafeRegex(p).test(line),
+              this.regexCache.getSafe(p).test(line),
             );
             if (excluded) continue;
           }
@@ -254,9 +273,10 @@ export class RuleEvaluator {
     if (config.functionNames && Array.isArray(config.functionNames)) {
       for (const funcName of config.functionNames as string[]) {
         const escaped = funcName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const regex = new RegExp(`\\b${escaped}\\s*\\(`, 'g');
+        const regex = this.regexCache.get(`\\b${escaped}\\s*\\(`, 'g');
         for (let i = 0; i < lines.length; i++) {
           const line = lines[i]!;
+          regex.lastIndex = 0;
           let match: RegExpExecArray | null;
           while ((match = regex.exec(line)) !== null) {
             findings.push(this.createFinding(rule, filePath, i + 1, match.index + 1, line));
@@ -268,9 +288,10 @@ export class RuleEvaluator {
     // Check general patterns array
     if (config.patterns && Array.isArray(config.patterns)) {
       for (const pattern of config.patterns as string[]) {
-        const regex = createSafeRegex(pattern, 'g');
+        const regex = this.regexCache.getSafe(pattern, 'g');
         for (let i = 0; i < lines.length; i++) {
           const line = lines[i]!;
+          regex.lastIndex = 0;
           let match: RegExpExecArray | null;
           while ((match = regex.exec(line)) !== null) {
             findings.push(this.createFinding(rule, filePath, i + 1, match.index + 1, line));
@@ -300,14 +321,15 @@ export class RuleEvaluator {
         const fileName = basename(filePath);
         const excluded = (config.exclude as string[]).some((pattern) => {
           const escaped = pattern.replace(/\./g, '\\.').replace(/\*/g, '.*');
-          return createSafeRegex(`^${escaped}$`).test(fileName);
+          return this.regexCache.getSafe(`^${escaped}$`).test(fileName);
         });
         if (excluded) return findings;
       }
 
-      const regex = createSafeRegex(config.regex as string, 'g');
+      const regex = this.regexCache.getSafe(config.regex as string, 'g');
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i]!;
+        regex.lastIndex = 0;
 
         let match: RegExpExecArray | null;
         while ((match = regex.exec(line)) !== null) {
@@ -338,7 +360,7 @@ export class RuleEvaluator {
     const fileName = basename(filePath);
     const matchesCheckFile = (config.checkFiles as string[]).some((glob) => {
       const pattern = glob.replace(/\./g, '\\.').replace(/\*/g, '.*');
-      return createSafeRegex(`^${pattern}$`, 'i').test(fileName);
+      return this.regexCache.getSafe(`^${pattern}$`, 'i').test(fileName);
     });
 
     if (!matchesCheckFile) return [];
@@ -515,7 +537,8 @@ export class RuleEvaluator {
       const line = lines[i]!;
       for (const funcName of functionNames) {
         const escaped = funcName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const callRegex = new RegExp(`\\b${escaped}\\s*\\(`, 'g');
+        const callRegex = this.regexCache.get(`\\b${escaped}\\s*\\(`, 'g');
+        callRegex.lastIndex = 0;
         let match: RegExpExecArray | null;
 
         while ((match = callRegex.exec(line)) !== null) {
@@ -523,7 +546,7 @@ export class RuleEvaluator {
           let found = false;
 
           for (const phiName of RuleEvaluator.PHI_VARIABLE_NAMES) {
-            if (new RegExp(`\\b${phiName}\\b`, 'i').test(argsText)) {
+            if (this.regexCache.get(`\\b${phiName}\\b`, 'i').test(argsText)) {
               findings.push(this.createFinding(rule, filePath, i + 1, match.index + 1, line));
               found = true;
               break;
@@ -556,12 +579,13 @@ export class RuleEvaluator {
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i]!;
       for (const pattern of responsePatterns) {
-        const regex = new RegExp(pattern.source, pattern.flags);
+        const regex = this.regexCache.get(pattern.source, pattern.flags);
+        regex.lastIndex = 0;
         let match: RegExpExecArray | null;
         while ((match = regex.exec(line)) !== null) {
           const contextBlock = this.extractCallArguments(lines, i, match.index + match[0].length);
           for (const field of RuleEvaluator.PHI_RESPONSE_FIELDS) {
-            if (new RegExp(`\\b${field}\\b`, 'i').test(contextBlock)) {
+            if (this.regexCache.get(`\\b${field}\\b`, 'i').test(contextBlock)) {
               findings.push(this.createFinding(rule, filePath, i + 1, match.index + 1, line));
               break;
             }
@@ -591,7 +615,7 @@ export class RuleEvaluator {
         if (!/\b(throw|raise)\b/.test(blockLine)) continue;
 
         for (const phiName of RuleEvaluator.PHI_VARIABLE_NAMES) {
-          if (new RegExp(`\\b${phiName}\\b`, 'i').test(blockLine)) {
+          if (this.regexCache.get(`\\b${phiName}\\b`, 'i').test(blockLine)) {
             findings.push(this.createFinding(rule, filePath, i + j + 1, 1, blockLine));
             break;
           }
@@ -619,13 +643,14 @@ export class RuleEvaluator {
       const line = lines[i]!;
       for (const routePattern of routePatterns) {
         const escaped = routePattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const routeRegex = new RegExp(`\\b${escaped}\\s*\\(`, 'g');
+        const routeRegex = this.regexCache.get(`\\b${escaped}\\s*\\(`, 'g');
+        routeRegex.lastIndex = 0;
         let match: RegExpExecArray | null;
 
         while ((match = routeRegex.exec(line)) !== null) {
           const argsText = this.extractCallArguments(lines, i, match.index + match[0].length);
           const hasAuth = requiredMiddleware.some((mw) =>
-            new RegExp(`\\b${mw}\\b`, 'i').test(argsText),
+            this.regexCache.get(`\\b${mw}\\b`, 'i').test(argsText),
           );
 
           if (!hasAuth) {
@@ -747,9 +772,16 @@ export class RuleEvaluator {
   private collectFiles(paths: string[], ignore: string[], maxFiles: number): string[] {
     const files: string[] = [];
 
+    // Pre-compile ignore patterns once
+    const compiledIgnore: Array<{ exact: string } | { regex: RegExp }> = ignore.map((pattern) =>
+      pattern.includes('*')
+        ? { regex: new RegExp(pattern.replace(/\*/g, '.*')) }
+        : { exact: pattern },
+    );
+
     for (const scanPath of paths) {
       const validatedPath = validateScanPath(scanPath);
-      this.walkDirectory(validatedPath, ignore, files, maxFiles, validatedPath);
+      this.walkDirectory(validatedPath, compiledIgnore, files, maxFiles);
       if (files.length >= maxFiles) break;
     }
 
@@ -757,14 +789,27 @@ export class RuleEvaluator {
   }
 
   /**
-   * Recursively walk a directory.
+   * Check if a name matches any compiled ignore pattern.
+   */
+  private isIgnored(name: string, patterns: Array<{ exact: string } | { regex: RegExp }>): boolean {
+    for (const p of patterns) {
+      if ('exact' in p) {
+        if (name === p.exact) return true;
+      } else {
+        if (p.regex.test(name)) return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Recursively walk a directory using Dirent for efficient type checking.
    */
   private walkDirectory(
     dir: string,
-    ignore: string[],
+    compiledIgnore: Array<{ exact: string } | { regex: RegExp }>,
     files: string[],
     maxFiles: number,
-    scanRoot: string,
   ): void {
     if (files.length >= maxFiles) return;
 
@@ -785,36 +830,24 @@ export class RuleEvaluator {
     }
 
     try {
-      const entries = readdirSync(dir);
+      const entries = readdirSync(dir, { withFileTypes: true });
       for (const entry of entries) {
         if (files.length >= maxFiles) break;
-        if (
-          ignore.some((pattern) => {
-            if (pattern.includes('*')) {
-              return new RegExp(pattern.replace(/\*/g, '.*')).test(entry);
-            }
-            return entry === pattern;
-          })
-        )
-          continue;
-
-        const fullPath = join(dir, entry);
+        if (this.isIgnored(entry.name, compiledIgnore)) continue;
 
         // Skip symbolic links to prevent directory escape
-        if (isSymlink(fullPath)) continue;
+        if (entry.isSymbolicLink()) continue;
 
-        try {
-          const stat = lstatSync(fullPath);
-          if (stat.isDirectory()) {
-            this.walkDirectory(fullPath, ignore, files, maxFiles, scanRoot);
-          } else if (
-            stat.isFile() &&
-            (SUPPORTED_EXTENSIONS.has(extname(entry).toLowerCase()) || isSupportedFilename(entry))
-          ) {
-            files.push(fullPath);
-          }
-        } catch {
-          // Skip inaccessible entries
+        const fullPath = join(dir, entry.name);
+
+        if (entry.isDirectory()) {
+          this.walkDirectory(fullPath, compiledIgnore, files, maxFiles);
+        } else if (
+          entry.isFile() &&
+          (SUPPORTED_EXTENSIONS.has(extname(entry.name).toLowerCase()) ||
+            isSupportedFilename(entry.name))
+        ) {
+          files.push(fullPath);
         }
       }
     } catch {
