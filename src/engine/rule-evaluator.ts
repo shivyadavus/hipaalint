@@ -182,7 +182,7 @@ export class RuleEvaluator {
         findings.push(...this.evaluateImportPattern(filePath, content, lines, rule, config));
         break;
       case 'ast_pattern':
-        // AST patterns are handled by PHI detector for now
+        findings.push(...this.evaluateAstPattern(filePath, content, lines, rule, config));
         break;
     }
 
@@ -221,17 +221,19 @@ export class RuleEvaluator {
 
     // Check regex patterns
     if (config.regex) {
+      // Skip excluded files (match against filename, not full path)
+      if (config.exclude && Array.isArray(config.exclude)) {
+        const fileName = basename(filePath);
+        const excluded = (config.exclude as string[]).some((pattern) => {
+          const escaped = pattern.replace(/\./g, '\\.').replace(/\*/g, '.*');
+          return createSafeRegex(`^${escaped}$`).test(fileName);
+        });
+        if (excluded) return findings;
+      }
+
       const regex = createSafeRegex(config.regex as string, 'g');
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i]!;
-
-        // Skip excluded file patterns
-        if (config.exclude && Array.isArray(config.exclude)) {
-          const excluded = (config.exclude as string[]).some((pattern) =>
-            createSafeRegex(pattern.replace(/\*/g, '.*')).test(filePath),
-          );
-          if (excluded) continue;
-        }
 
         let match: RegExpExecArray | null;
         while ((match = regex.exec(line)) !== null) {
@@ -293,17 +295,19 @@ export class RuleEvaluator {
     const findings: ComplianceFinding[] = [];
 
     if (config.regex) {
+      // Skip excluded files (match against filename, not full path)
+      if (config.exclude && Array.isArray(config.exclude)) {
+        const fileName = basename(filePath);
+        const excluded = (config.exclude as string[]).some((pattern) => {
+          const escaped = pattern.replace(/\./g, '\\.').replace(/\*/g, '.*');
+          return createSafeRegex(`^${escaped}$`).test(fileName);
+        });
+        if (excluded) return findings;
+      }
+
       const regex = createSafeRegex(config.regex as string, 'g');
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i]!;
-
-        // Skip excluded files
-        if (config.exclude && Array.isArray(config.exclude)) {
-          const excluded = (config.exclude as string[]).some((pattern) =>
-            createSafeRegex(pattern.replace(/\*/g, '.*')).test(filePath),
-          );
-          if (excluded) continue;
-        }
 
         let match: RegExpExecArray | null;
         while ((match = regex.exec(line)) !== null) {
@@ -405,6 +409,296 @@ export class RuleEvaluator {
     }
 
     return [];
+  }
+
+  // ── AST Pattern Evaluation ──
+
+  private static readonly CODE_EXTENSIONS = new Set([
+    '.ts',
+    '.tsx',
+    '.js',
+    '.jsx',
+    '.mjs',
+    '.cjs',
+    '.py',
+    '.java',
+    '.go',
+  ]);
+
+  private static readonly PHI_VARIABLE_NAMES = [
+    'patientName',
+    'patient_name',
+    'patientFirstName',
+    'patient_first_name',
+    'patientLastName',
+    'patient_last_name',
+    'ssn',
+    'socialSecurityNumber',
+    'social_security_number',
+    'dob',
+    'dateOfBirth',
+    'date_of_birth',
+    'birthDate',
+    'birth_date',
+    'mrn',
+    'medicalRecordNumber',
+    'medical_record_number',
+    'patientEmail',
+    'patient_email',
+    'patientPhone',
+    'patient_phone',
+    'patientAddress',
+    'patient_address',
+    'diagnosis',
+    'medication',
+    'treatment',
+    'prescription',
+    'insuranceId',
+    'insurance_id',
+  ];
+
+  private static readonly PHI_RESPONSE_FIELDS = [
+    'ssn',
+    'socialSecurity',
+    'dateOfBirth',
+    'dob',
+    'birthDate',
+    'diagnosis',
+    'medicalRecord',
+    'mrn',
+    'address',
+    'streetAddress',
+    'patientName',
+    'patient_name',
+    'insurance',
+    'medication',
+    'treatment',
+    'prescription',
+  ];
+
+  private evaluateAstPattern(
+    filePath: string,
+    _content: string,
+    lines: string[],
+    rule: Rule,
+    config: Record<string, unknown>,
+  ): ComplianceFinding[] {
+    const ext = extname(filePath).toLowerCase();
+    if (!RuleEvaluator.CODE_EXTENSIONS.has(ext)) return [];
+
+    if (config.functionNames && config.checkArguments) {
+      return this.detectPHIInLogStatements(filePath, lines, rule, config);
+    }
+    if (config.checkForPHIFields && config.apiContext) {
+      return this.detectPHIInApiResponse(filePath, lines, rule);
+    }
+    if (config.checkThrowContent) {
+      return this.detectPHIInErrorMessages(filePath, lines, rule);
+    }
+    if (config.routePatterns && config.requireMiddleware) {
+      return this.detectMissingAuthMiddleware(filePath, lines, rule, config);
+    }
+
+    return [];
+  }
+
+  private detectPHIInLogStatements(
+    filePath: string,
+    lines: string[],
+    rule: Rule,
+    config: Record<string, unknown>,
+  ): ComplianceFinding[] {
+    const findings: ComplianceFinding[] = [];
+    const functionNames = config.functionNames as string[];
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]!;
+      for (const funcName of functionNames) {
+        const escaped = funcName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const callRegex = new RegExp(`\\b${escaped}\\s*\\(`, 'g');
+        let match: RegExpExecArray | null;
+
+        while ((match = callRegex.exec(line)) !== null) {
+          const argsText = this.extractCallArguments(lines, i, match.index + match[0].length);
+          let found = false;
+
+          for (const phiName of RuleEvaluator.PHI_VARIABLE_NAMES) {
+            if (new RegExp(`\\b${phiName}\\b`, 'i').test(argsText)) {
+              findings.push(this.createFinding(rule, filePath, i + 1, match.index + 1, line));
+              found = true;
+              break;
+            }
+          }
+
+          if (!found && this.containsInlinePHIPattern(argsText)) {
+            findings.push(this.createFinding(rule, filePath, i + 1, match.index + 1, line));
+          }
+        }
+      }
+    }
+    return findings;
+  }
+
+  private detectPHIInApiResponse(
+    filePath: string,
+    lines: string[],
+    rule: Rule,
+  ): ComplianceFinding[] {
+    const findings: ComplianceFinding[] = [];
+    const responsePatterns = [
+      /\bres\.json\s*\(/g,
+      /\bres\.send\s*\(/g,
+      /\bresponse\.json\s*\(/g,
+      /\bresponse\.send\s*\(/g,
+      /\bjsonify\s*\(/g,
+    ];
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]!;
+      for (const pattern of responsePatterns) {
+        const regex = new RegExp(pattern.source, pattern.flags);
+        let match: RegExpExecArray | null;
+        while ((match = regex.exec(line)) !== null) {
+          const contextBlock = this.extractCallArguments(lines, i, match.index + match[0].length);
+          for (const field of RuleEvaluator.PHI_RESPONSE_FIELDS) {
+            if (new RegExp(`\\b${field}\\b`, 'i').test(contextBlock)) {
+              findings.push(this.createFinding(rule, filePath, i + 1, match.index + 1, line));
+              break;
+            }
+          }
+        }
+      }
+    }
+    return findings;
+  }
+
+  private detectPHIInErrorMessages(
+    filePath: string,
+    lines: string[],
+    rule: Rule,
+  ): ComplianceFinding[] {
+    const findings: ComplianceFinding[] = [];
+    const catchRegex = /\b(catch|except)\s*[\s({]/;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]!;
+      if (!catchRegex.test(line)) continue;
+
+      const blockLines = this.extractBlock(lines, i, 20);
+
+      for (let j = 0; j < blockLines.length; j++) {
+        const blockLine = blockLines[j]!;
+        if (!/\b(throw|raise)\b/.test(blockLine)) continue;
+
+        for (const phiName of RuleEvaluator.PHI_VARIABLE_NAMES) {
+          if (new RegExp(`\\b${phiName}\\b`, 'i').test(blockLine)) {
+            findings.push(this.createFinding(rule, filePath, i + j + 1, 1, blockLine));
+            break;
+          }
+        }
+
+        if (/\$\{[^}]*(patient|ssn|dob|mrn|name|phone|email|address)/i.test(blockLine)) {
+          findings.push(this.createFinding(rule, filePath, i + j + 1, 1, blockLine));
+        }
+      }
+    }
+    return findings;
+  }
+
+  private detectMissingAuthMiddleware(
+    filePath: string,
+    lines: string[],
+    rule: Rule,
+    config: Record<string, unknown>,
+  ): ComplianceFinding[] {
+    const findings: ComplianceFinding[] = [];
+    const routePatterns = config.routePatterns as string[];
+    const requiredMiddleware = config.requireMiddleware as string[];
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]!;
+      for (const routePattern of routePatterns) {
+        const escaped = routePattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const routeRegex = new RegExp(`\\b${escaped}\\s*\\(`, 'g');
+        let match: RegExpExecArray | null;
+
+        while ((match = routeRegex.exec(line)) !== null) {
+          const argsText = this.extractCallArguments(lines, i, match.index + match[0].length);
+          const hasAuth = requiredMiddleware.some((mw) =>
+            new RegExp(`\\b${mw}\\b`, 'i').test(argsText),
+          );
+
+          if (!hasAuth) {
+            findings.push(this.createFinding(rule, filePath, i + 1, match.index + 1, line));
+          }
+        }
+      }
+    }
+    return findings;
+  }
+
+  // ── AST Pattern Helpers ──
+
+  private extractCallArguments(lines: string[], startLine: number, startCol: number): string {
+    let depth = 1;
+    let result = '';
+    const firstLine = lines[startLine]!;
+    result += firstLine.substring(startCol);
+
+    // Check if paren closes on same line
+    for (let c = startCol; c < firstLine.length; c++) {
+      const ch = firstLine[c]!;
+      if (ch === '(') depth++;
+      else if (ch === ')') depth--;
+      if (depth === 0) return firstLine.substring(startCol, c);
+    }
+
+    // Look ahead up to 10 lines
+    const maxLookahead = Math.min(startLine + 10, lines.length - 1);
+    for (let i = startLine + 1; i <= maxLookahead; i++) {
+      const line = lines[i]!;
+      result += '\n' + line;
+      for (const ch of line) {
+        if (ch === '(') depth++;
+        else if (ch === ')') depth--;
+        if (depth === 0) return result;
+      }
+    }
+
+    return result;
+  }
+
+  private extractBlock(lines: string[], startLine: number, maxLines: number): string[] {
+    const block: string[] = [];
+    let depth = 0;
+    let foundOpen = false;
+    const limit = Math.min(startLine + maxLines, lines.length);
+
+    for (let i = startLine; i < limit; i++) {
+      const line = lines[i]!;
+      block.push(line);
+
+      for (const ch of line) {
+        if (ch === '{') {
+          depth++;
+          foundOpen = true;
+        } else if (ch === '}' && foundOpen) {
+          depth--;
+        }
+      }
+
+      if (foundOpen && depth <= 0) break;
+    }
+
+    return block;
+  }
+
+  private containsInlinePHIPattern(text: string): boolean {
+    // SSN pattern in string
+    if (/\d{3}-\d{2}-\d{4}/.test(text)) return true;
+    // Template interpolation with PHI variable names
+    if (/\$\{[^}]*(patient|ssn|dob|mrn|diagnosis|medication)/i.test(text)) return true;
+    return false;
   }
 
   /**
