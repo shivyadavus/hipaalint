@@ -34,6 +34,18 @@ describe('PHIDetector', () => {
       const findings = detector.detect(code, 'test.ts');
       expect(findings.filter((f) => f.identifierType === 'email')).toHaveLength(0);
     });
+
+    it('should exclude infrastructure emails like noreply@', () => {
+      const code = 'const sender = "noreply@company.com";';
+      const findings = detector.detect(code, 'test.ts');
+      expect(findings.filter((f) => f.identifierType === 'email')).toHaveLength(0);
+    });
+
+    it('should exclude admin@ and support@ emails', () => {
+      const code = 'const contact = "admin@hospital.com"; const help = "support@hospital.com";';
+      const findings = detector.detect(code, 'test.ts');
+      expect(findings.filter((f) => f.identifierType === 'email')).toHaveLength(0);
+    });
   });
 
   describe('Phone Detection', () => {
@@ -45,8 +57,8 @@ describe('PHIDetector', () => {
   });
 
   describe('IP Address Detection', () => {
-    it('should detect IP addresses', () => {
-      const code = 'const server = "192.168.1.100";';
+    it('should detect public IP addresses', () => {
+      const code = 'const server = "8.8.8.8";';
       const findings = detector.detect(code, 'test.ts');
       expect(findings.some((f) => f.identifierType === 'ip_address')).toBe(true);
     });
@@ -55,6 +67,73 @@ describe('PHIDetector', () => {
       const code = 'const server = "127.0.0.1";';
       const findings = detector.detect(code, 'test.ts');
       expect(findings.filter((f) => f.identifierType === 'ip_address')).toHaveLength(0);
+    });
+
+    it('should exclude 10.x.x.x private range', () => {
+      const code = 'const server = "10.0.0.1";';
+      const findings = detector.detect(code, 'test.ts');
+      expect(findings.filter((f) => f.identifierType === 'ip_address')).toHaveLength(0);
+    });
+
+    it('should exclude 172.16.x.x private range', () => {
+      const code = 'const server = "172.16.0.1";';
+      const findings = detector.detect(code, 'test.ts');
+      expect(findings.filter((f) => f.identifierType === 'ip_address')).toHaveLength(0);
+    });
+
+    it('should exclude 192.168.x.x private range', () => {
+      const code = 'const server = "192.168.1.1";';
+      const findings = detector.detect(code, 'test.ts');
+      expect(findings.filter((f) => f.identifierType === 'ip_address')).toHaveLength(0);
+    });
+  });
+
+  describe('Date False Positive Reduction', () => {
+    it('should not flag dates on lines with release/version keywords', () => {
+      const code = 'const releaseDate = "01/15/2025"; // release version date';
+      const findings = detector.detect(code, 'test.ts');
+      expect(findings.filter((f) => f.identifierType === 'date_of_birth')).toHaveLength(0);
+    });
+
+    it('should not flag dates on lines with copyright keyword', () => {
+      const code = '// Copyright 01/15/2024 - All rights reserved';
+      const strictDetector = new PHIDetector({ sensitivity: 'strict' });
+      const findings = strictDetector.detect(code, 'test.ts');
+      expect(findings.filter((f) => f.identifierType === 'date_of_birth')).toHaveLength(0);
+    });
+  });
+
+  describe('Type Definition Skipping', () => {
+    it('should not flag PHI variable names inside interface definitions', () => {
+      const code = 'interface PatientRecord {\n  patientName: string;\n}';
+      const findings = detector.detect(code, 'test.ts');
+      // "interface PatientRecord {" should be skipped for variable detection
+      // but the field definition "patientName: string" on the next line is not an interface line
+      // so it may still be detected — the key test is the interface line itself
+      const interfaceLineFindings = findings.filter((f) => f.lineNumber === 1);
+      expect(
+        interfaceLineFindings.filter(
+          (f) =>
+            f.identifierType === 'name' ||
+            f.identifierType === 'medical_record_number',
+        ),
+      ).toHaveLength(0);
+    });
+
+    it('should not flag PHI variable names inside type definitions', () => {
+      const code = 'type PatientData = { patientName: string; ssn: string; }';
+      const findings = detector.detect(code, 'test.ts');
+      // The "type" line should be skipped for variable name patterns
+      const varFindings = findings.filter(
+        (f) => f.identifierType === 'name' || f.identifierType === 'ssn',
+      );
+      expect(varFindings).toHaveLength(0);
+    });
+
+    it('should still flag PHI variable names in const assignments', () => {
+      const code = 'const patientName = "John Doe";';
+      const findings = detector.detect(code, 'test.ts');
+      expect(findings.some((f) => f.identifierType === 'name')).toBe(true);
     });
   });
 

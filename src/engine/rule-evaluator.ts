@@ -7,6 +7,118 @@ import { readFileSync, readdirSync, lstatSync } from 'fs';
 import { join, extname, basename } from 'path';
 
 // ──────────────────────────────────────────────────
+// Inline Suppression Comments
+// ──────────────────────────────────────────────────
+
+// Suppression comment patterns:
+//   // hipaalint-disable-next-line [RULE-ID]
+//   // hipaalint-disable-line [RULE-ID]
+//   // hipaalint-disable [RULE-ID]    (block start)
+//   // hipaalint-enable [RULE-ID]     (block end)
+//   # hipaalint-disable-next-line [RULE-ID]   (Python/YAML style)
+
+const DISABLE_NEXT_LINE = /(?:\/\/|#)\s*hipaalint-disable-next-line(?:\s+([\w-]+))?\s*$/;
+const DISABLE_LINE = /(?:\/\/|#)\s*hipaalint-disable-line(?:\s+([\w-]+))?\s*$/;
+const DISABLE_BLOCK = /(?:\/\/|#)\s*hipaalint-disable(?:\s+([\w-]+))?\s*$/;
+const ENABLE_BLOCK = /(?:\/\/|#)\s*hipaalint-enable(?:\s+([\w-]+))?\s*$/;
+
+type SuppressionEntry = Set<string> | 'all';
+
+/**
+ * Build a map of which lines are suppressed and for which rules.
+ * Returns a Map<lineIndex (0-based), Set<ruleId> | 'all'>.
+ */
+function buildSuppressionMap(lines: string[]): Map<number, SuppressionEntry> {
+  const map = new Map<number, SuppressionEntry>();
+  // Track active block suppressions: Map<ruleId | 'all', true>
+  const activeBlocks = new Map<string, boolean>();
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
+
+    // Check for block enable (must come before block disable to handle same-line)
+    const enableMatch = ENABLE_BLOCK.exec(line);
+    if (enableMatch) {
+      const ruleId = enableMatch[1] ?? 'all';
+      activeBlocks.delete(ruleId);
+      // If enabling a specific rule but 'all' is still active, don't fully clear
+    }
+
+    // Check for block disable
+    const disableMatch = DISABLE_BLOCK.exec(line);
+    if (disableMatch) {
+      const ruleId = disableMatch[1] ?? 'all';
+      activeBlocks.set(ruleId, true);
+    }
+
+    // Check for disable-next-line
+    const nextLineMatch = DISABLE_NEXT_LINE.exec(line);
+    if (nextLineMatch && i + 1 < lines.length) {
+      const ruleId = nextLineMatch[1];
+      const nextIdx = i + 1;
+      const existing = map.get(nextIdx);
+      if (existing === 'all') {
+        // Already fully suppressed
+      } else if (!ruleId) {
+        map.set(nextIdx, 'all');
+      } else if (existing instanceof Set) {
+        existing.add(ruleId);
+      } else {
+        map.set(nextIdx, new Set([ruleId]));
+      }
+    }
+
+    // Check for disable-line (current line)
+    const lineMatch = DISABLE_LINE.exec(line);
+    if (lineMatch) {
+      const ruleId = lineMatch[1];
+      const existing = map.get(i);
+      if (existing === 'all') {
+        // Already fully suppressed
+      } else if (!ruleId) {
+        map.set(i, 'all');
+      } else if (existing instanceof Set) {
+        existing.add(ruleId);
+      } else {
+        map.set(i, new Set([ruleId]));
+      }
+    }
+
+    // Apply active block suppressions to current line
+    if (activeBlocks.size > 0) {
+      if (activeBlocks.has('all')) {
+        map.set(i, 'all');
+      } else {
+        const existing = map.get(i);
+        if (existing !== 'all') {
+          const merged = existing instanceof Set ? existing : new Set<string>();
+          for (const ruleId of activeBlocks.keys()) {
+            merged.add(ruleId);
+          }
+          map.set(i, merged);
+        }
+      }
+    }
+  }
+
+  return map;
+}
+
+/**
+ * Check if a finding is suppressed by the suppression map.
+ */
+function isSuppressed(
+  suppressionMap: Map<number, SuppressionEntry>,
+  lineIndex: number,
+  ruleId: string,
+): boolean {
+  const entry = suppressionMap.get(lineIndex);
+  if (!entry) return false;
+  if (entry === 'all') return true;
+  return entry.has(ruleId);
+}
+
+// ──────────────────────────────────────────────────
 // Supported extensions
 // ──────────────────────────────────────────────────
 
@@ -143,16 +255,25 @@ export class RuleEvaluator {
 
   /**
    * Evaluate a single file against rules.
+   * Applies inline suppression comments (hipaalint-disable-*) to filter results.
    */
   private evaluateFile(filePath: string, content: string, rules: Rule[]): ComplianceFinding[] {
     const findings: ComplianceFinding[] = [];
     const lines = content.split('\n');
 
+    // Build suppression map from inline comments
+    const suppressionMap = buildSuppressionMap(lines);
+
     // 1. Run PHI detector
     const phiFindings = this.phiDetector.detect(content, filePath);
     for (const phi of phiFindings) {
+      const ruleId = `HIPAA-PHI-${phi.identifierType.toUpperCase()}`;
+
+      // Check inline suppression
+      if (isSuppressed(suppressionMap, phi.lineNumber - 1, ruleId)) continue;
+
       findings.push({
-        ruleId: `HIPAA-PHI-${phi.identifierType.toUpperCase()}`,
+        ruleId,
         frameworkId: 'hipaa',
         severity:
           phi.confidence === 'high' ? 'critical' : phi.confidence === 'medium' ? 'high' : 'medium',
@@ -176,7 +297,13 @@ export class RuleEvaluator {
       const config = this.getParsedConfig(rule);
       if (!config) continue;
       const ruleFindings = this.evaluateRule(filePath, content, lines, rule, config);
-      findings.push(...ruleFindings);
+
+      // Filter out suppressed findings
+      for (const finding of ruleFindings) {
+        if (!isSuppressed(suppressionMap, finding.lineNumber - 1, finding.ruleId)) {
+          findings.push(finding);
+        }
+      }
     }
 
     return findings;

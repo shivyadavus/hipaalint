@@ -27,7 +27,23 @@ const PHI_PATTERNS: PHIPattern[] = [
     regex: /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g,
     confidence: 'medium',
     citation: '45 CFR §164.514(b)(2)(i)(C) — Electronic mail addresses',
-    excludePatterns: [/@example\.com/i, /@test\.com/i, /@localhost/i, /@placeholder/i],
+    excludePatterns: [
+      /@example\.com/i,
+      /@test\.com/i,
+      /@localhost/i,
+      /@placeholder/i,
+      /^noreply@/i,
+      /^no-reply@/i,
+      /^support@/i,
+      /^admin@/i,
+      /^info@/i,
+      /^bot@/i,
+      /^devops@/i,
+      /^postmaster@/i,
+      /^webmaster@/i,
+      /^notifications@/i,
+      /^donotreply@/i,
+    ],
   },
   // 3. Phone numbers
   {
@@ -42,14 +58,24 @@ const PHI_PATTERNS: PHIPattern[] = [
     regex: /\b(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\b/g,
     confidence: 'medium',
     citation: '45 CFR §164.514(b)(2)(i)(O) — Internet Protocol address numbers',
-    excludePatterns: [/127\.0\.0\.1/, /0\.0\.0\.0/, /localhost/],
+    excludePatterns: [
+      /127\.0\.0\.1/,
+      /0\.0\.0\.0/,
+      /localhost/,
+      /\b10\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/, // 10.0.0.0/8 private range
+      /\b172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}\b/, // 172.16.0.0/12 private range
+      /\b192\.168\.\d{1,3}\.\d{1,3}\b/, // 192.168.0.0/16 private range
+    ],
   },
   // 5. Dates of birth
   {
     type: 'date_of_birth',
     regex: /\b(?:0[1-9]|1[0-2])[-/](?:0[1-9]|[12]\d|3[01])[-/](?:19|20)\d{2}\b/g,
-    confidence: 'medium',
+    confidence: 'low',
     citation: '45 CFR §164.514(b)(2)(i)(B) — Dates related to individual',
+    excludePatterns: [
+      /\b(release|version|copyright|deploy|published|updated|created|modified|build)\b/i,
+    ],
   },
   // 6. Medical record numbers
   {
@@ -342,6 +368,9 @@ export class PHIDetector {
       }
 
       // 2. Check variable name patterns (pre-compiled)
+      // Skip lines that are type/interface/class definitions (schema, not data)
+      if (this.isTypeDefinitionLine(line)) continue;
+
       for (const varPattern of COMPILED_VAR_PATTERNS) {
         for (const { name, regex: nameRegex } of varPattern.regexes) {
           nameRegex.lastIndex = 0;
@@ -419,6 +448,15 @@ export class PHIDetector {
       if (base === 'medium') return 'low';
     }
     return base;
+  }
+
+  /**
+   * Check if a line is a type/interface/class definition (schema declaration, not actual data).
+   * Variable names in these contexts define structure, not hold PHI values.
+   */
+  private isTypeDefinitionLine(line: string): boolean {
+    const trimmed = line.trimStart();
+    return /^\s*(export\s+)?(interface|type|class|abstract\s+class|enum)\s+/.test(trimmed);
   }
 
   private isTestFile(filePath: string): boolean {

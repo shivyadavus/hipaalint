@@ -259,6 +259,117 @@ describe('RuleEvaluator', () => {
     });
   });
 
+  describe('inline suppression comments', () => {
+    it('should suppress specific rule with disable-next-line', () => {
+      writeFileSync(
+        join(FIXTURES_DIR, 'suppressed.ts'),
+        [
+          '// hipaalint-disable-next-line HIPAA-ENC-001',
+          'const url = "http://api.example.com/data";',
+        ].join('\n'),
+      );
+
+      const evaluator = new RuleEvaluator({ sensitivity: 'balanced' });
+      try {
+        const result = evaluator.evaluate([FIXTURES_DIR]);
+        const enc001 = result.findings.filter((f) => f.ruleId === 'HIPAA-ENC-001');
+        expect(enc001.length).toBe(0);
+      } finally {
+        evaluator.close();
+      }
+    });
+
+    it('should suppress all rules with disable-next-line (no rule ID)', () => {
+      writeFileSync(
+        join(FIXTURES_DIR, 'suppressed-all.ts'),
+        [
+          '// hipaalint-disable-next-line',
+          'const secretKey = "my-secret"; const url = "http://api.example.com";',
+        ].join('\n'),
+      );
+
+      const evaluator = new RuleEvaluator({ sensitivity: 'balanced' });
+      try {
+        const result = evaluator.evaluate([FIXTURES_DIR]);
+        // Line 2 should have no findings at all
+        const line2Findings = result.findings.filter(
+          (f) => f.filePath.includes('suppressed-all') && f.lineNumber === 2,
+        );
+        expect(line2Findings.length).toBe(0);
+      } finally {
+        evaluator.close();
+      }
+    });
+
+    it('should suppress current line with disable-line', () => {
+      writeFileSync(
+        join(FIXTURES_DIR, 'inline.ts'),
+        'const url = "http://api.example.com/data"; // hipaalint-disable-line HIPAA-ENC-001\n',
+      );
+
+      const evaluator = new RuleEvaluator({ sensitivity: 'balanced' });
+      try {
+        const result = evaluator.evaluate([FIXTURES_DIR]);
+        const enc001 = result.findings.filter(
+          (f) => f.ruleId === 'HIPAA-ENC-001' && f.filePath.includes('inline'),
+        );
+        expect(enc001.length).toBe(0);
+      } finally {
+        evaluator.close();
+      }
+    });
+
+    it('should suppress block with disable/enable', () => {
+      writeFileSync(
+        join(FIXTURES_DIR, 'block.ts'),
+        [
+          '// hipaalint-disable HIPAA-ENC-001',
+          'const url1 = "http://api.example.com/a";',
+          'const url2 = "http://api.example.com/b";',
+          '// hipaalint-enable HIPAA-ENC-001',
+          'const url3 = "http://api.example.com/c";',
+        ].join('\n'),
+      );
+
+      const evaluator = new RuleEvaluator({ sensitivity: 'balanced' });
+      try {
+        const result = evaluator.evaluate([FIXTURES_DIR]);
+        const enc001 = result.findings.filter(
+          (f) => f.ruleId === 'HIPAA-ENC-001' && f.filePath.includes('block'),
+        );
+        // Lines 2 and 3 suppressed, line 5 should still fire
+        expect(enc001.length).toBe(1);
+        expect(enc001[0]!.lineNumber).toBe(5);
+      } finally {
+        evaluator.close();
+      }
+    });
+
+    it('should still produce findings on non-suppressed lines', () => {
+      writeFileSync(
+        join(FIXTURES_DIR, 'partial.ts'),
+        [
+          '// hipaalint-disable-next-line HIPAA-ENC-001',
+          'const url1 = "http://api.example.com/a";',
+          'const url2 = "http://api.example.com/b";',
+        ].join('\n'),
+      );
+
+      const evaluator = new RuleEvaluator({ sensitivity: 'balanced' });
+      try {
+        const result = evaluator.evaluate([FIXTURES_DIR]);
+        const enc001 = result.findings.filter(
+          (f) => f.ruleId === 'HIPAA-ENC-001' && f.filePath.includes('partial'),
+        );
+        // Line 2 suppressed, line 3 should fire
+        expect(enc001.length).toBe(1);
+        expect(enc001[0]!.lineNumber).toBe(3);
+      } finally {
+        evaluator.close();
+      }
+    });
+  });
+
   describe('getRuleDatabase()', () => {
     it('should return the rule database instance', () => {
       const evaluator = new RuleEvaluator({ sensitivity: 'balanced' });
