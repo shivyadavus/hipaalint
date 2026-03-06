@@ -314,7 +314,7 @@ async function handleScore(args: Record<string, unknown>) {
     const score = calculator.calculateScore(result, validated.framework, validated.sensitivity);
 
     const bandEmoji: Record<string, string> = {
-      compliant: '🟢',
+      strong: '🟢',
       needs_improvement: '🟡',
       at_risk: '🟠',
       critical: '🔴',
@@ -395,7 +395,7 @@ async function handleReport(args: Record<string, unknown>) {
       content: [
         {
           type: 'text' as const,
-          text: `✅ Report generated: ${reportPath}\n\nScore: ${score.overallScore}/100 (${score.band})\nFindings: ${result.findings.length}`,
+          text: `✅ Report generated: ${reportPath}\n\nScore: ${score.overallScore}/100 (${score.band})\nFindings: ${result.findings.length}\n\nNote: HipaaLint AI does not guarantee HIPAA compliance.`,
         },
       ],
     };

@@ -169,12 +169,11 @@ program
         }
       }
 
+      // Always show disclaimer when findings exist
+      console.log(`--- This tool does not guarantee HIPAA compliance. Consult qualified professionals. ---\n`);
+
       // Set exit code if critical findings exist
       if (criticals.length > 0) {
-        console.log(`\n======================================================`);
-        console.log(`⚠️  DISCLAIMER: HipaaLint AI is a static analysis`);
-        console.log(`   tool and does NOT guarantee full HIPAA compliance.`);
-        console.log(`======================================================\n`);
         process.exit(1);
       }
     } finally {
@@ -218,7 +217,7 @@ program
       }
 
       const bandEmoji: Record<string, string> = {
-        compliant: '🟢',
+        strong: '🟢',
         needs_improvement: '🟡',
         at_risk: '🟠',
         critical: '🔴',
@@ -340,7 +339,8 @@ program
 
       console.log(`✅ Report saved: ${reportPath}`);
       console.log(`   Score: ${score.overallScore}/100 (${score.band})`);
-      console.log(`   Findings: ${result.findings.length}\n`);
+      console.log(`   Findings: ${result.findings.length}`);
+      console.log(`   Note: This report does not guarantee HIPAA compliance.\n`);
     } finally {
       evaluator.close();
     }
@@ -386,6 +386,7 @@ program
         console.log(`     📋 ${f.citation}\n`);
       }
 
+      console.log(`--- This tool does not guarantee HIPAA compliance. Consult qualified professionals. ---\n`);
       process.exitCode = 1;
     } catch (_err) {
       console.error(`Error reading file: ${file}`);

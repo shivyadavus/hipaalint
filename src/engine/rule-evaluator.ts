@@ -197,8 +197,8 @@ export class RuleEvaluator {
       case 'import_pattern':
         findings.push(...this.evaluateImportPattern(filePath, content, lines, rule, config));
         break;
-      case 'ast_pattern':
-        findings.push(...this.evaluateAstPattern(filePath, content, lines, rule, config));
+      case 'semantic_pattern':
+        findings.push(...this.evaluateSemanticPattern(filePath, content, lines, rule, config));
         break;
     }
 
@@ -498,7 +498,7 @@ export class RuleEvaluator {
     'prescription',
   ];
 
-  private evaluateAstPattern(
+  private evaluateSemanticPattern(
     filePath: string,
     _content: string,
     lines: string[],

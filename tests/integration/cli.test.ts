@@ -75,7 +75,7 @@ describe('CLI: scan', () => {
   it('should exit 1 for non-compliant directory with critical findings', async () => {
     const { stdout, exitCode } = await runCLI(['scan', NON_COMPLIANT_DIR]);
     expect(exitCode).toBe(1);
-    expect(stdout).toContain('DISCLAIMER');
+    expect(stdout).toContain('does not guarantee HIPAA compliance');
   });
 
   it('should output valid JSON with --json flag', async () => {

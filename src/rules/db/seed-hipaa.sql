@@ -13,7 +13,7 @@ VALUES ('hipaa', '2025.1', 'Health Insurance Portability and Accountability Act 
 
 INSERT INTO rules (framework_id, rule_id, title, description, severity, category, citation, remediation, pattern_type, pattern_config, is_required)
 VALUES
-(1, 'HIPAA-PHI-001', 'PHI in Log Statements', 'Detects potential PHI (names, SSN, DOB, medical records) in log/print statements.', 'critical', 'phi_protection', '45 CFR §164.502(a) — Minimum Necessary', 'Remove PHI from all log statements. Use tokenized identifiers instead of real patient data.', 'ast_pattern', '{"nodeTypes":["call_expression"],"functionNames":["console.log","console.error","console.warn","console.info","console.debug","logger.info","logger.warn","logger.error","logger.debug","print","logging.info","logging.warning","logging.error","logging.debug"],"checkArguments":true}', 1),
+(1, 'HIPAA-PHI-001', 'PHI in Log Statements', 'Detects potential PHI (names, SSN, DOB, medical records) in log/print statements.', 'critical', 'phi_protection', '45 CFR §164.502(a) — Minimum Necessary', 'Remove PHI from all log statements. Use tokenized identifiers instead of real patient data.', 'semantic_pattern', '{"nodeTypes":["call_expression"],"functionNames":["console.log","console.error","console.warn","console.info","console.debug","logger.info","logger.warn","logger.error","logger.debug","print","logging.info","logging.warning","logging.error","logging.debug"],"checkArguments":true}', 1),
 
 (1, 'HIPAA-PHI-002', 'SSN Pattern in Source Code', 'Detects Social Security Number patterns (XXX-XX-XXXX) in source code.', 'critical', 'phi_protection', '45 CFR §164.514(a) — De-identification', 'Never hardcode SSNs. Use environment variables or secure vault references.', 'code_pattern', '{"regex":"\\\\b\\\\d{3}-\\\\d{2}-\\\\d{4}\\\\b","exclude":["*.test.*","*.spec.*"]}', 1),
 
@@ -29,9 +29,9 @@ VALUES
 
 (1, 'HIPAA-PHI-008', 'Medical Record Number Exposure', 'Detects medical record numbers in code or logs.', 'critical', 'phi_protection', '45 CFR §164.514(b)(2)(i)(F) — Medical record numbers', 'Never log or expose MRN. Use encrypted references.', 'code_pattern', '{"variableNames":["mrn","medicalRecordNumber","medical_record_number","medicalRecordNum","medical_record_num"],"caseSensitive":false}', 1),
 
-(1, 'HIPAA-PHI-009', 'PHI in API Response', 'Detects potential PHI being returned in API responses without proper authorization checks.', 'critical', 'phi_protection', '45 CFR §164.312(a)(1) — Access Control', 'Implement response filtering. Only return PHI with proper authorization. Use DTOs to control response shape.', 'ast_pattern', '{"nodeTypes":["return_statement","object"],"checkForPHIFields":true,"apiContext":true}', 1),
+(1, 'HIPAA-PHI-009', 'PHI in API Response', 'Detects potential PHI being returned in API responses without proper authorization checks.', 'critical', 'phi_protection', '45 CFR §164.312(a)(1) — Access Control', 'Implement response filtering. Only return PHI with proper authorization. Use DTOs to control response shape.', 'semantic_pattern', '{"nodeTypes":["return_statement","object"],"checkForPHIFields":true,"apiContext":true}', 1),
 
-(1, 'HIPAA-PHI-010', 'PHI in Error Messages', 'Detects potential PHI exposure through error messages and exception handlers.', 'high', 'phi_protection', '45 CFR §164.502(a) — Minimum Necessary', 'Scrub all PHI from error messages. Use generic error codes.', 'ast_pattern', '{"nodeTypes":["catch_clause","except_clause"],"checkThrowContent":true}', 1);
+(1, 'HIPAA-PHI-010', 'PHI in Error Messages', 'Detects potential PHI exposure through error messages and exception handlers.', 'high', 'phi_protection', '45 CFR §164.502(a) — Minimum Necessary', 'Scrub all PHI from error messages. Use generic error codes.', 'semantic_pattern', '{"nodeTypes":["catch_clause","except_clause"],"checkThrowContent":true}', 1);
 
 -- ─────────────────────────────────────────────────
 -- DOMAIN 2: Encryption & Transport (20% weight)
@@ -57,7 +57,7 @@ VALUES
 
 INSERT INTO rules (framework_id, rule_id, title, description, severity, category, citation, remediation, pattern_type, pattern_config, is_required)
 VALUES
-(1, 'HIPAA-AC-001', 'Missing Authentication Middleware', 'Checks that API routes handling PHI have authentication middleware.', 'critical', 'access_control', '45 CFR §164.312(d) — Person or Entity Authentication', 'Add authentication middleware to all routes that access PHI. Use JWT or session-based auth.', 'ast_pattern', '{"routePatterns":["app.get","app.post","app.put","app.delete","router.get","router.post"],"requireMiddleware":["auth","authenticate","requireAuth","isAuthenticated","verifyToken"]}', 1),
+(1, 'HIPAA-AC-001', 'Missing Authentication Middleware', 'Checks that API routes handling PHI have authentication middleware.', 'critical', 'access_control', '45 CFR §164.312(d) — Person or Entity Authentication', 'Add authentication middleware to all routes that access PHI. Use JWT or session-based auth.', 'semantic_pattern', '{"routePatterns":["app.get","app.post","app.put","app.delete","router.get","router.post"],"requireMiddleware":["auth","authenticate","requireAuth","isAuthenticated","verifyToken"]}', 1),
 
 (1, 'HIPAA-AC-002', 'Missing Authorization Check', 'Detects PHI access without role-based authorization verification.', 'high', 'access_control', '45 CFR §164.312(a)(1) — Access Control', 'Implement RBAC. Check user roles before granting PHI access.', 'code_pattern', '{"patterns":["patient","medical","health","diagnosis","prescription"],"requireNearby":["authorize","checkRole","hasPermission","canAccess","rbac"]}', 1),
 

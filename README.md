@@ -106,7 +106,7 @@ hipaalint score ./src
 
 | Band | Score | Meaning |
 |------|-------|---------|
-| Compliant | 90-100 | Meets baseline HIPAA technical safeguards |
+| Strong | 90-100 | Meets baseline HIPAA technical safeguards |
 | Needs Improvement | 70-89 | Minor gaps to address |
 | At Risk | 40-69 | Significant compliance gaps |
 | Critical | 0-39 | Immediate remediation required |

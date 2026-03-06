@@ -17,7 +17,7 @@ const COLORS = {
 };
 
 const BAND_COLORS: Record<string, string> = {
-  compliant: COLORS.success,
+  strong: COLORS.success,
   needs_improvement: COLORS.warning,
   at_risk: COLORS.warning,
   critical: COLORS.danger,

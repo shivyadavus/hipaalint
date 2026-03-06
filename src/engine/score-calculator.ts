@@ -194,16 +194,22 @@ export class ScoreCalculator {
 
   /**
    * Apply score clamping rules per PRD Section 6.
+   * Graduated clamping: more critical findings produce a lower cap.
    */
   private applyClampRules(score: number, findings: ComplianceFinding[]): number {
     let clampedScore = score;
 
-    // Critical PHI finding → capped at 69
-    const hasCriticalPHI = findings.some(
+    // Count critical PHI findings for graduated clamping
+    const criticalPHICount = findings.filter(
       (f) => f.category === 'phi_protection' && f.severity === 'critical',
-    );
-    if (hasCriticalPHI) {
-      clampedScore = Math.min(clampedScore, SCORE_CLAMP_RULES.criticalPHIFinding);
+    ).length;
+
+    if (criticalPHICount >= 6) {
+      clampedScore = Math.min(clampedScore, SCORE_CLAMP_RULES.manyCriticalPHI); // 6+ → max 49
+    } else if (criticalPHICount >= 2) {
+      clampedScore = Math.min(clampedScore, SCORE_CLAMP_RULES.multipleCriticalPHI); // 2-5 → max 59
+    } else if (criticalPHICount >= 1) {
+      clampedScore = Math.min(clampedScore, SCORE_CLAMP_RULES.criticalPHIFinding); // 1 → max 69
     }
 
     // No encryption at rest → capped at 59
@@ -215,6 +221,14 @@ export class ScoreCalculator {
       clampedScore = Math.min(clampedScore, SCORE_CLAMP_RULES.noEncryptionAtRest);
     }
 
+    // No MFA enforcement → capped at 79
+    const hasMFAFinding = findings.some(
+      (f) => f.category === 'access_control' && f.ruleId.includes('AC-004'),
+    );
+    if (hasMFAFinding) {
+      clampedScore = Math.min(clampedScore, SCORE_CLAMP_RULES.noMFAEnforcement);
+    }
+
     return clampedScore;
   }
 
@@ -222,7 +236,7 @@ export class ScoreCalculator {
    * Determine score band from overall score.
    */
   private determineBand(score: number): ScoreBand {
-    if (score >= SCORE_BAND_THRESHOLDS.compliant) return 'compliant';
+    if (score >= SCORE_BAND_THRESHOLDS.strong) return 'strong';
     if (score >= SCORE_BAND_THRESHOLDS.needs_improvement) return 'needs_improvement';
     if (score >= SCORE_BAND_THRESHOLDS.at_risk) return 'at_risk';
     return 'critical';
