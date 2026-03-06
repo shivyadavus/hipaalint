@@ -67,6 +67,16 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
             description: 'Detection sensitivity level (default: balanced)',
             default: 'balanced',
           },
+          maxDepth: {
+            type: 'number',
+            description: 'Maximum directory depth to traverse (default: 50, max: 200)',
+            default: 50,
+          },
+          timeout: {
+            type: 'number',
+            description: 'Scan timeout in milliseconds (default: 60000, max: 300000)',
+            default: 60000,
+          },
         },
         required: ['path'],
       },
@@ -233,7 +243,7 @@ async function handleScan(args: Record<string, unknown>) {
   try {
     validated = MCPScanArgsSchema.parse(args);
     path = validateScanPath(validated.path);
-  } catch (err) {
+  } catch (err: unknown) {
     return {
       content: [{ type: 'text' as const, text: formatValidationError(err) }],
       isError: true,
@@ -242,7 +252,10 @@ async function handleScan(args: Record<string, unknown>) {
 
   const evaluator = new RuleEvaluator({ sensitivity: validated.sensitivity });
   try {
-    const result = evaluator.evaluate([path], validated.framework);
+    const result = evaluator.evaluate([path], validated.framework, {
+      maxDepth: validated.maxDepth,
+      timeoutMs: validated.timeout,
+    });
 
     // Format output using single-pass counting
     const counts = countFindings(result.findings);

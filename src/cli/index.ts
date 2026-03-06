@@ -63,6 +63,8 @@ program
   .option('--fix', 'Auto-fix simple violations (http→https, weak TLS, CORS wildcard)')
   .option('--dry-run', 'Preview fixes without writing changes (requires --fix)')
   .option('--max-files <n>', 'Max files to scan', '10000')
+  .option('--max-depth <n>', 'Max directory depth to traverse', '50')
+  .option('--timeout <ms>', 'Scan timeout in milliseconds', '60000')
   .action(async (path: string, options) => {
     let targetPath: string;
     let validated: z.infer<typeof ScanOptionsSchema>;
@@ -88,6 +90,8 @@ program
     try {
       const result = evaluator.evaluate([targetPath], validated.framework, {
         maxFiles: validated.maxFiles,
+        maxDepth: validated.maxDepth,
+        timeoutMs: validated.timeout,
       });
 
       if (jsonOutput) {

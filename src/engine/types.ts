@@ -237,6 +237,7 @@ export const ScanResultSchema = z.object({
   rulesEvaluated: z.number(),
   scanDurationMs: z.number(),
   timestamp: z.string().datetime(),
+  timedOut: z.boolean().optional(),
 });
 export type ScanResult = z.infer<typeof ScanResultSchema>;
 

@@ -90,21 +90,30 @@ export class RuleEvaluator {
   evaluate(
     paths: string[],
     framework = 'hipaa',
-    options: { ignore?: string[]; maxFiles?: number } = {},
+    options: { ignore?: string[]; maxFiles?: number; maxDepth?: number; timeoutMs?: number } = {},
   ): ScanResult {
     const startTime = Date.now();
     const ignore = [...DEFAULT_IGNORE, ...(options.ignore ?? [])];
     const maxFiles = options.maxFiles ?? 10000;
+    const maxDepth = options.maxDepth ?? 50;
+    const timeoutMs = options.timeoutMs ?? 60_000;
 
-    // Collect files
-    const files = this.collectFiles(paths, ignore, maxFiles);
+    // Collect files (with depth limit)
+    const files = this.collectFiles(paths, ignore, maxFiles, maxDepth);
     const rules = this.ruleDb.getRulesByFramework(framework);
 
     // Evaluate each file
     const allFindings: ComplianceFinding[] = [];
     let filesSkipped = 0;
+    let timedOut = false;
 
     for (const filePath of files) {
+      // Timeout guard: stop scanning if time limit exceeded
+      if (Date.now() - startTime > timeoutMs) {
+        timedOut = true;
+        break;
+      }
+
       try {
         const content = readFileSync(filePath, 'utf-8');
 
@@ -128,6 +137,7 @@ export class RuleEvaluator {
       rulesEvaluated: rules.length,
       scanDurationMs: Date.now() - startTime,
       timestamp: new Date().toISOString(),
+      ...(timedOut && { timedOut: true }),
     };
   }
 
@@ -769,7 +779,12 @@ export class RuleEvaluator {
   /**
    * Collect all scannable files from paths.
    */
-  private collectFiles(paths: string[], ignore: string[], maxFiles: number): string[] {
+  private collectFiles(
+    paths: string[],
+    ignore: string[],
+    maxFiles: number,
+    maxDepth: number,
+  ): string[] {
     const files: string[] = [];
 
     // Pre-compile ignore patterns once
@@ -781,7 +796,7 @@ export class RuleEvaluator {
 
     for (const scanPath of paths) {
       const validatedPath = validateScanPath(scanPath);
-      this.walkDirectory(validatedPath, compiledIgnore, files, maxFiles);
+      this.walkDirectory(validatedPath, compiledIgnore, files, maxFiles, maxDepth, 0);
       if (files.length >= maxFiles) break;
     }
 
@@ -804,14 +819,18 @@ export class RuleEvaluator {
 
   /**
    * Recursively walk a directory using Dirent for efficient type checking.
+   * Respects maxDepth to prevent unbounded traversal.
    */
   private walkDirectory(
     dir: string,
     compiledIgnore: Array<{ exact: string } | { regex: RegExp }>,
     files: string[],
     maxFiles: number,
+    maxDepth: number,
+    currentDepth: number,
   ): void {
     if (files.length >= maxFiles) return;
+    if (currentDepth > maxDepth) return; // Depth limit reached
 
     try {
       const stat = lstatSync(dir);
@@ -841,7 +860,7 @@ export class RuleEvaluator {
         const fullPath = join(dir, entry.name);
 
         if (entry.isDirectory()) {
-          this.walkDirectory(fullPath, compiledIgnore, files, maxFiles);
+          this.walkDirectory(fullPath, compiledIgnore, files, maxFiles, maxDepth, currentDepth + 1);
         } else if (
           entry.isFile() &&
           (SUPPORTED_EXTENSIONS.has(extname(entry.name).toLowerCase()) ||

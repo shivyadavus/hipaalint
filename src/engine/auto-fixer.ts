@@ -37,6 +37,54 @@ const FIXABLE_RULES = new Set([
 ]);
 
 // ──────────────────────────────────────────────────
+// Comment Detection
+// ──────────────────────────────────────────────────
+
+/**
+ * Check if a line is a single-line comment.
+ */
+function isCommentLine(line: string): boolean {
+  const trimmed = line.trimStart();
+  return trimmed.startsWith('//') || trimmed.startsWith('#') || trimmed.startsWith('*');
+}
+
+/**
+ * Build a map of which lines are inside block comments (/* ... *​/).
+ * Returns a Set of 0-based line indices that are inside block comments.
+ */
+function computeBlockCommentLines(lines: string[]): Set<number> {
+  const blockLines = new Set<number>();
+  let inBlock = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
+
+    if (inBlock) {
+      blockLines.add(i);
+      if (line.includes('*/')) {
+        inBlock = false;
+      }
+    } else {
+      // Check for block comment start (but not single-line /* ... */ on same line)
+      const startIdx = line.indexOf('/*');
+      if (startIdx !== -1) {
+        const endIdx = line.indexOf('*/', startIdx + 2);
+        if (endIdx === -1) {
+          // Block comment starts and does NOT close on this line
+          blockLines.add(i);
+          inBlock = true;
+        } else {
+          // Single-line block comment — still a comment line
+          blockLines.add(i);
+        }
+      }
+    }
+  }
+
+  return blockLines;
+}
+
+// ──────────────────────────────────────────────────
 // AutoFixer
 // ──────────────────────────────────────────────────
 
@@ -45,6 +93,7 @@ export class AutoFixer {
    * Apply auto-fixes for supported findings.
    * Groups by file for efficient I/O. Processes lines bottom-up
    * to preserve line numbers when multiple fixes target the same file.
+   * Skips lines that are inside comments to avoid breaking code.
    */
   fix(findings: ComplianceFinding[], options: { dryRun?: boolean } = {}): FixSummary {
     const summary: FixSummary = {
@@ -76,6 +125,7 @@ export class AutoFixer {
       try {
         const content = readFileSync(filePath, 'utf-8');
         const lines = content.split('\n');
+        const blockCommentLines = computeBlockCommentLines(lines);
         let modified = false;
 
         // Sort by line number descending so fixes don't shift line indices
@@ -94,6 +144,18 @@ export class AutoFixer {
           }
 
           const originalLine = lines[lineIdx]!;
+
+          // Skip comment lines — modifying comments can break documentation or examples
+          if (isCommentLine(originalLine) || blockCommentLines.has(lineIdx)) {
+            summary.skipped.push({
+              ruleId: finding.ruleId,
+              filePath,
+              lineNumber: finding.lineNumber,
+              reason: 'Line is inside a comment',
+            });
+            continue;
+          }
+
           const result = this.applyFix(finding, originalLine);
 
           if (result) {
@@ -168,7 +230,10 @@ export class AutoFixer {
 
     const fixedLine = line.replace(/http:\/\/(?!localhost|127\.0\.0\.1|0\.0\.0\.0)/g, 'https://');
     if (fixedLine === line) return null;
-    return { fixedLine, description: 'Upgraded http:// to https://' };
+    return {
+      fixedLine,
+      description: 'Upgraded http:// to https:// (verify target supports HTTPS)',
+    };
   }
 
   /**
