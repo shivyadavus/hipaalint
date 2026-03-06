@@ -27,7 +27,7 @@ describe('RuleEvaluator', () => {
         expect(result).toHaveProperty('rulesEvaluated');
         expect(result).toHaveProperty('scanDurationMs');
         expect(result).toHaveProperty('timestamp');
-        expect(result.rulesEvaluated).toBe(29);
+        expect(result.rulesEvaluated).toBe(33);
       } finally {
         evaluator.close();
       }
@@ -203,6 +203,46 @@ describe('RuleEvaluator', () => {
       }
     });
 
+    it('should NOT flag AC-004 when Auth0 is imported', () => {
+      writeFileSync(
+        join(FIXTURES_DIR, 'auth.ts'),
+        [
+          'import { Auth0Provider } from "@auth0/auth0-react";',
+          'import express from "express";',
+          'const app = express();',
+        ].join('\n'),
+      );
+
+      const evaluator = new RuleEvaluator({ sensitivity: 'balanced' });
+      try {
+        const result = evaluator.evaluate([FIXTURES_DIR]);
+        const mfaFindings = result.findings.filter((f) => f.ruleId === 'HIPAA-AC-004');
+        expect(mfaFindings.length).toBe(0);
+      } finally {
+        evaluator.close();
+      }
+    });
+
+    it('should NOT flag AL-001 when @sentry is imported', () => {
+      writeFileSync(
+        join(FIXTURES_DIR, 'logging.ts'),
+        [
+          'import * as Sentry from "@sentry/node";',
+          'import express from "express";',
+          'Sentry.init({ dsn: process.env.SENTRY_DSN });',
+        ].join('\n'),
+      );
+
+      const evaluator = new RuleEvaluator({ sensitivity: 'balanced' });
+      try {
+        const result = evaluator.evaluate([FIXTURES_DIR]);
+        const auditFindings = result.findings.filter((f) => f.ruleId === 'HIPAA-AL-001');
+        expect(auditFindings.length).toBe(0);
+      } finally {
+        evaluator.close();
+      }
+    });
+
     it('should skip non-code files for import patterns', () => {
       writeFileSync(join(FIXTURES_DIR, 'config.yaml'), 'server:\n  port: 3000\n');
 
@@ -225,7 +265,7 @@ describe('RuleEvaluator', () => {
       try {
         const db = evaluator.getRuleDatabase();
         expect(db).toBeDefined();
-        expect(db.getRuleCount()).toBe(29);
+        expect(db.getRuleCount()).toBe(33);
       } finally {
         evaluator.close();
       }

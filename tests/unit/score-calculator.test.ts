@@ -27,7 +27,7 @@ function createScanResult(findings: ComplianceFinding[] = []): ScanResult {
     findings,
     filesScanned: 10,
     filesSkipped: 0,
-    rulesEvaluated: 29,
+    rulesEvaluated: 33,
     scanDurationMs: 100,
     timestamp: new Date().toISOString(),
   };
@@ -99,7 +99,7 @@ describe('ScoreCalculator', () => {
       expect(score.metadata.framework).toBe('hipaa');
       expect(score.metadata.sensitivity).toBe('balanced');
       expect(score.metadata.filesScanned).toBe(10);
-      expect(score.metadata.rulesEvaluated).toBe(29);
+      expect(score.metadata.rulesEvaluated).toBe(33);
     });
 
     it('should group findings into correct domains', () => {

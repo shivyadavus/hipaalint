@@ -55,7 +55,7 @@ function createMockReport(findingsCount = 1): ComplianceReport {
       metadata: {
         scannedAt: '2026-01-15T00:00:00.000Z',
         filesScanned: 10,
-        rulesEvaluated: 29,
+        rulesEvaluated: 33,
         framework: 'hipaa',
         sensitivity: 'balanced',
         engineVersion: '1.0.0',

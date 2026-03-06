@@ -31,7 +31,7 @@ function createMockScore(overallScore: number, band: ComplianceScore['band']): C
     metadata: {
       scannedAt: new Date().toISOString(),
       filesScanned: 10,
-      rulesEvaluated: 29,
+      rulesEvaluated: 33,
       framework: 'hipaa',
       sensitivity: 'balanced',
       engineVersion: '1.0.0',

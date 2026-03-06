@@ -22,7 +22,7 @@
 
 A single exposed SSN in a log statement or an `http://` instead of `https://` can trigger a HIPAA violation carrying fines up to **$1.9M per incident**. With AI coding assistants generating code faster than ever, compliance gaps slip through at scale.
 
-HipaaLint scans your codebase against **29 rules across 6 compliance domains**, scores your project 0-100, and **auto-fixes simple violations** — all in under a second.
+HipaaLint scans your codebase against **33 rules across 6 compliance domains**, scores your project 0-100, and **auto-fixes simple violations** — all in under a second.
 
 ## Quick Start
 
@@ -63,7 +63,7 @@ hipaalint scan ./src
 
 📊 Results:
    Files scanned: 128
-   Rules evaluated: 29
+   Rules evaluated: 33
    Duration: 869ms
 
    🔴 Critical: 31
@@ -152,7 +152,7 @@ The `--dry-run` flag previews every change with a diff before touching any file.
 | **PHI Detection** | Detects all 18 HIPAA identifiers (SSN, DOB, MRN, email, phone, etc.) |
 | **HipaaLint Score** | Weighted 0-100 score across 6 compliance domains |
 | **Auto-Fix** | Safe, deterministic fixes for HTTP, TLS, and CORS violations |
-| **29 HIPAA Rules** | Pre-seeded rule database with regex, AST, config, and import patterns |
+| **33 HIPAA Rules** | Pre-seeded rule database with regex, semantic, config, and import patterns |
 | **Audit Reports** | JSON, SARIF (GitHub Code Scanning), and PDF reports |
 | **MCP Server** | 5 tools for Claude Code, Cursor, and other AI agents |
 | **GitHub Action** | CI/CD integration with SARIF upload and score thresholds |
@@ -290,7 +290,7 @@ src/
 │   ├── auto-fixer.ts      # Auto-remediation engine
 │   └── regex-cache.ts     # Compiled regex cache for performance
 ├── rules/                 # Rule database
-│   └── db/                # SQLite schema + 29 HIPAA rules
+│   └── db/                # SQLite schema + 33 HIPAA rules
 ├── mcp-server/            # MCP server (5 tools)
 ├── cli/                   # CLI entry point (commander.js)
 ├── reports/               # JSON, SARIF, PDF generators
