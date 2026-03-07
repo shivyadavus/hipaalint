@@ -11,7 +11,7 @@ import { generatePdfReport } from '../reports/pdf-report.js';
 import type { ComplianceFinding, ComplianceReport } from '../engine/types.js';
 import { countFindings } from '../engine/finding-counter.js';
 import { randomUUID } from 'crypto';
-import { basename } from 'path';
+import { basename, relative, sep } from 'path';
 import {
   SecurityError,
   validateScanPath,
@@ -289,7 +289,7 @@ async function handleScan(args: Record<string, unknown>) {
         if (findings.length > 0) {
           output += `### ${icon} ${label} (${findings.length})\n\n`;
           for (const f of findings) {
-            const relPath = f.filePath.replace(path + '/', '');
+            const relPath = relative(path, f.filePath).split(sep).join('/');
             output += `- **${f.ruleId}** ${f.title}\n`;
             output += `  📍 \`${relPath}:${f.lineNumber}\`\n`;
             output += `  📋 ${f.citation}\n`;

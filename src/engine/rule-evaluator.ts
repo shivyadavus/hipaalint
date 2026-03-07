@@ -3,8 +3,8 @@ import { PHIDetector } from './phi-detector.js';
 import { RegexCache } from './regex-cache.js';
 import { RuleDatabase } from '../rules/rule-loader.js';
 import { validateScanPath } from '../security/index.js';
-import { readFileSync, readdirSync, lstatSync } from 'fs';
-import { join, extname, basename } from 'path';
+import { readFileSync, readdirSync, lstatSync, existsSync } from 'fs';
+import { join, extname, basename, dirname } from 'path';
 
 // ──────────────────────────────────────────────────
 // Inline Suppression Comments
@@ -161,6 +161,24 @@ const DEFAULT_IGNORE = [
   '.DS_Store',
 ];
 
+/**
+ * Load ignore patterns from a .hipaalintignore file.
+ * Format: one pattern per line, # for comments, blank lines ignored.
+ */
+function loadIgnoreFile(dir: string): string[] {
+  const ignorePath = join(dir, '.hipaalintignore');
+  if (!existsSync(ignorePath)) return [];
+  try {
+    const content = readFileSync(ignorePath, 'utf-8');
+    return content
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0 && !line.startsWith('#'));
+  } catch {
+    return [];
+  }
+}
+
 // ──────────────────────────────────────────────────
 // Rule Evaluator
 // ──────────────────────────────────────────────────
@@ -205,7 +223,9 @@ export class RuleEvaluator {
     options: { ignore?: string[]; maxFiles?: number; maxDepth?: number; timeoutMs?: number } = {},
   ): ScanResult {
     const startTime = Date.now();
-    const ignore = [...DEFAULT_IGNORE, ...(options.ignore ?? [])];
+    // Load .hipaalintignore from project root (first path)
+    const projectIgnore = paths.length > 0 ? loadIgnoreFile(dirname(paths[0]!)) : [];
+    const ignore = [...DEFAULT_IGNORE, ...projectIgnore, ...(options.ignore ?? [])];
     const maxFiles = options.maxFiles ?? 10000;
     const maxDepth = options.maxDepth ?? 50;
     const timeoutMs = options.timeoutMs ?? 60_000;
@@ -259,7 +279,7 @@ export class RuleEvaluator {
    */
   private evaluateFile(filePath: string, content: string, rules: Rule[]): ComplianceFinding[] {
     const findings: ComplianceFinding[] = [];
-    const lines = content.split('\n');
+    const lines = content.replace(/\r\n/g, '\n').split('\n');
 
     // Build suppression map from inline comments
     const suppressionMap = buildSuppressionMap(lines);

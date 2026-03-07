@@ -113,9 +113,7 @@ describe('PHIDetector', () => {
       const interfaceLineFindings = findings.filter((f) => f.lineNumber === 1);
       expect(
         interfaceLineFindings.filter(
-          (f) =>
-            f.identifierType === 'name' ||
-            f.identifierType === 'medical_record_number',
+          (f) => f.identifierType === 'name' || f.identifierType === 'medical_record_number',
         ),
       ).toHaveLength(0);
     });

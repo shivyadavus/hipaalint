@@ -141,6 +141,7 @@ describe('ScoreCalculator', () => {
           severity: 'high',
           category: 'access_control',
           ruleId: 'HIPAA-AC-004',
+          title: 'Missing MFA Implementation',
         }),
       ]);
       const score = calculator.calculateScore(result);

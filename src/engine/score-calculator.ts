@@ -23,6 +23,13 @@ const CATEGORY_TO_DOMAIN: Record<Category, keyof ComplianceScore['domainScores']
 };
 
 // ──────────────────────────────────────────────────
+// Clamping rule matchers (category + title-based, no hardcoded IDs)
+// ──────────────────────────────────────────────────
+
+const ENCRYPTION_AT_REST_KEYWORDS = ['encryption at rest', 'encryption and decryption'];
+const MFA_KEYWORDS = ['mfa', 'multi-factor', 'two-factor', 'multifactor'];
+
+// ──────────────────────────────────────────────────
 // Score Calculator
 // ──────────────────────────────────────────────────
 
@@ -47,8 +54,14 @@ export class ScoreCalculator {
     // Apply clamping rules
     overallScore = this.applyClampRules(overallScore, scanResult.findings);
 
+    // Empty project guard: if no files were scanned, score is not meaningful
+    if (scanResult.filesScanned === 0) {
+      overallScore = 0;
+    }
+
     // Determine band
-    const band = this.determineBand(overallScore);
+    const band =
+      scanResult.filesScanned === 0 ? ('critical' as ScoreBand) : this.determineBand(overallScore);
 
     return {
       overallScore: Math.round(overallScore * 10) / 10,
@@ -194,6 +207,7 @@ export class ScoreCalculator {
 
   /**
    * Apply score clamping rules per PRD Section 6.
+   * Uses category + keyword matching instead of hardcoded rule IDs for resilience.
    * Graduated clamping: more critical findings produce a lower cap.
    */
   private applyClampRules(score: number, findings: ComplianceFinding[]): number {
@@ -212,18 +226,22 @@ export class ScoreCalculator {
       clampedScore = Math.min(clampedScore, SCORE_CLAMP_RULES.criticalPHIFinding); // 1 → max 69
     }
 
-    // No encryption at rest → capped at 59
+    // No encryption at rest → capped at 59 (match by category + title keywords)
     const hasNoEncryption = findings.some(
       (f) =>
-        f.category === 'encryption' && f.severity === 'critical' && f.ruleId.includes('ENC-003'),
+        f.category === 'encryption' &&
+        f.severity === 'critical' &&
+        ENCRYPTION_AT_REST_KEYWORDS.some((kw) => f.title.toLowerCase().includes(kw)),
     );
     if (hasNoEncryption) {
       clampedScore = Math.min(clampedScore, SCORE_CLAMP_RULES.noEncryptionAtRest);
     }
 
-    // No MFA enforcement → capped at 79
+    // No MFA enforcement → capped at 79 (match by category + title keywords)
     const hasMFAFinding = findings.some(
-      (f) => f.category === 'access_control' && f.ruleId.includes('AC-004'),
+      (f) =>
+        f.category === 'access_control' &&
+        MFA_KEYWORDS.some((kw) => f.title.toLowerCase().includes(kw)),
     );
     if (hasMFAFinding) {
       clampedScore = Math.min(clampedScore, SCORE_CLAMP_RULES.noMFAEnforcement);
