@@ -145,6 +145,22 @@ function isSupportedFilename(name: string): boolean {
   return lower === '.env' || lower.startsWith('.env.');
 }
 
+// ──────────────────────────────────────────────────
+// Binary File Detection
+// ──────────────────────────────────────────────────
+
+/**
+ * Check if file content appears to be binary (contains null bytes).
+ * Only checks the first 8KB for efficiency.
+ */
+function isBinaryContent(content: string): boolean {
+  const checkLength = Math.min(content.length, 8192);
+  for (let i = 0; i < checkLength; i++) {
+    if (content.charCodeAt(i) === 0) return true;
+  }
+  return false;
+}
+
 const DEFAULT_IGNORE = [
   'node_modules',
   'dist',
@@ -238,6 +254,7 @@ export class RuleEvaluator {
     const allFindings: ComplianceFinding[] = [];
     let filesSkipped = 0;
     let timedOut = false;
+    const skipReasons = { binary: 0, tooLarge: 0, readError: 0 };
 
     for (const filePath of files) {
       // Timeout guard: stop scanning if time limit exceeded
@@ -249,9 +266,17 @@ export class RuleEvaluator {
       try {
         const content = readFileSync(filePath, 'utf-8');
 
+        // Binary guard: skip files with null bytes
+        if (isBinaryContent(content)) {
+          filesSkipped++;
+          skipReasons.binary++;
+          continue;
+        }
+
         // Size guard: skip files > 1MB
         if (content.length > 1_000_000) {
           filesSkipped++;
+          skipReasons.tooLarge++;
           continue;
         }
 
@@ -259,8 +284,12 @@ export class RuleEvaluator {
         allFindings.push(...findings);
       } catch {
         filesSkipped++;
+        skipReasons.readError++;
       }
     }
+
+    const hasSkipReasons =
+      skipReasons.binary > 0 || skipReasons.tooLarge > 0 || skipReasons.readError > 0;
 
     return {
       findings: this.deduplicateFindings(allFindings),
@@ -270,6 +299,7 @@ export class RuleEvaluator {
       scanDurationMs: Date.now() - startTime,
       timestamp: new Date().toISOString(),
       ...(timedOut && { timedOut: true }),
+      ...(hasSkipReasons && { skipReasons }),
     };
   }
 

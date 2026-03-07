@@ -212,6 +212,47 @@ describe('PHIDetector', () => {
     });
   });
 
+  describe('Base64 PHI Detection', () => {
+    it('should detect base64-encoded SSN', () => {
+      // "123-45-6789" in base64
+      const encoded = Buffer.from('123-45-6789').toString('base64');
+      const code = `const data = "${encoded}";`;
+      const findings = detector.detect(code, 'test.ts');
+      expect(findings.some((f) => f.identifierType === 'ssn')).toBe(true);
+      expect(findings.some((f) => f.matchedText.includes('[base64]'))).toBe(true);
+    });
+
+    it('should detect base64-encoded email', () => {
+      const encoded = Buffer.from('patient@hospital.com').toString('base64');
+      const code = `const payload = "${encoded}";`;
+      const findings = detector.detect(code, 'test.ts');
+      expect(findings.some((f) => f.identifierType === 'email')).toBe(true);
+    });
+
+    it('should detect base64-encoded MRN', () => {
+      const encoded = Buffer.from('MRN123456').toString('base64');
+      const code = `const record = "${encoded}";`;
+      const findings = detector.detect(code, 'test.ts');
+      expect(findings.some((f) => f.identifierType === 'medical_record_number')).toBe(true);
+    });
+
+    it('should not flag non-PHI base64 strings', () => {
+      const encoded = Buffer.from('Hello World, this is a test').toString('base64');
+      const code = `const msg = "${encoded}";`;
+      const findings = detector.detect(code, 'test.ts');
+      const base64Findings = findings.filter((f) => f.matchedText.includes('[base64]'));
+      expect(base64Findings).toHaveLength(0);
+    });
+
+    it('should not flag short base64 strings', () => {
+      // Too short to be meaningful base64
+      const code = 'const x = "SGVsbA==";';
+      const findings = detector.detect(code, 'test.ts');
+      const base64Findings = findings.filter((f) => f.matchedText.includes('[base64]'));
+      expect(base64Findings).toHaveLength(0);
+    });
+  });
+
   describe('containsPHI', () => {
     it('should return true for text with SSN', () => {
       expect(detector.containsPHI('SSN: 123-45-6789')).toBe(true);

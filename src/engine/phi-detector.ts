@@ -257,6 +257,65 @@ const COMPILED_VAR_PATTERNS: Array<{
   citation: vp.citation,
 }));
 
+// ──────────────────────────────────────────────────
+// Base64 Detection
+// ──────────────────────────────────────────────────
+
+// Matches base64-encoded strings (≥12 chars) inside string literals
+// 12 base64 chars = 9 decoded bytes, enough for SSN/MRN patterns
+const BASE64_STRING_REGEX = /(?:['"`])([A-Za-z0-9+/]{12,}={0,2})(?:['"`])/g;
+
+// PHI patterns to check against decoded base64 content
+const BASE64_PHI_CHECKS: Array<{
+  type: PHIIdentifierType;
+  regex: RegExp;
+  confidence: 'high' | 'medium' | 'low';
+  citation: string;
+}> = [
+  {
+    type: 'ssn',
+    regex: /\d{3}-\d{2}-\d{4}/,
+    confidence: 'high',
+    citation: '45 CFR §164.514(a) — De-identification (base64-encoded)',
+  },
+  {
+    type: 'email',
+    regex: /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/,
+    confidence: 'high',
+    citation: '45 CFR §164.514(b)(2)(i)(C) — Electronic mail addresses (base64-encoded)',
+  },
+  {
+    type: 'medical_record_number',
+    regex: /MRN[-_:# ]?\d{4,12}/i,
+    confidence: 'high',
+    citation: '45 CFR §164.514(b)(2)(i)(F) — Medical record numbers (base64-encoded)',
+  },
+  {
+    type: 'phone',
+    regex: /\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/,
+    confidence: 'medium',
+    citation: '45 CFR §164.514(b)(2)(i)(D) — Telephone numbers (base64-encoded)',
+  },
+];
+
+/**
+ * Safely decode a base64 string, returning null if invalid.
+ */
+function safeBase64Decode(encoded: string): string | null {
+  try {
+    const decoded = Buffer.from(encoded, 'base64').toString('utf-8');
+    // Verify it's valid text (no control chars except whitespace)
+    if (/[\x00-\x08\x0E-\x1F]/.test(decoded)) return null;
+    // Verify it round-trips (confirms it was actually base64)
+    const reEncoded = Buffer.from(decoded, 'utf-8').toString('base64');
+    // Remove trailing '=' padding differences
+    if (encoded.replace(/=+$/, '') !== reEncoded.replace(/=+$/, '')) return null;
+    return decoded;
+  } catch {
+    return null;
+  }
+}
+
 // Log function names to check for PHI in arguments
 const LOG_FUNCTIONS = new Set([
   'console.log',
@@ -367,7 +426,10 @@ export class PHIDetector {
         }
       }
 
-      // 2. Check variable name patterns (pre-compiled)
+      // 2. Check for base64-encoded PHI
+      this.detectBase64PHI(line, filePath, lineNumber, context, findings);
+
+      // 3. Check variable name patterns (pre-compiled)
       // Skip lines that are type/interface/class definitions (schema, not data)
       if (this.isTypeDefinitionLine(line)) continue;
 
@@ -410,6 +472,43 @@ export class PHIDetector {
       if (pattern.regex.test(text)) return true;
     }
     return false;
+  }
+
+  /**
+   * Detect PHI hidden inside base64-encoded strings.
+   */
+  private detectBase64PHI(
+    line: string,
+    filePath: string,
+    lineNumber: number,
+    context: PHIContext,
+    findings: PHIFinding[],
+  ): void {
+    BASE64_STRING_REGEX.lastIndex = 0;
+    let match: RegExpExecArray | null;
+
+    while ((match = BASE64_STRING_REGEX.exec(line)) !== null) {
+      const encoded = match[1]!;
+      const decoded = safeBase64Decode(encoded);
+      if (!decoded) continue;
+
+      // Check decoded content against PHI patterns
+      for (const check of BASE64_PHI_CHECKS) {
+        if (check.regex.test(decoded)) {
+          findings.push({
+            identifierType: check.type,
+            filePath,
+            lineNumber,
+            columnNumber: match.index + 1,
+            matchedText: `[base64] ${redactMatch(decoded.substring(0, 30))}`,
+            context,
+            confidence: this.adjustConfidence(check.confidence, context),
+            citation: check.citation,
+          });
+          break; // One finding per base64 string is enough
+        }
+      }
+    }
   }
 
   private shouldSkipPattern(pattern: PHIPattern, context: PHIContext): boolean {

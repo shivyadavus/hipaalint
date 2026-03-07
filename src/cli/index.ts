@@ -142,6 +142,14 @@ program
 
       console.log(`📊 Results:`);
       console.log(`   Files scanned: ${result.filesScanned}`);
+      if (result.filesSkipped > 0) {
+        const parts: string[] = [];
+        if (result.skipReasons?.binary) parts.push(`${result.skipReasons.binary} binary`);
+        if (result.skipReasons?.tooLarge) parts.push(`${result.skipReasons.tooLarge} too large`);
+        if (result.skipReasons?.readError) parts.push(`${result.skipReasons.readError} unreadable`);
+        const detail = parts.length > 0 ? ` (${parts.join(', ')})` : '';
+        console.log(`   Files skipped: ${result.filesSkipped}${detail}`);
+      }
       console.log(`   Rules evaluated: ${result.rulesEvaluated}`);
       console.log(`   Duration: ${result.scanDurationMs}ms\n`);
       console.log(`   🔴 Critical: ${criticals.length}`);

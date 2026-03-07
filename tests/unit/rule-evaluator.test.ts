@@ -370,6 +370,37 @@ describe('RuleEvaluator', () => {
     });
   });
 
+  describe('skip reasons tracking', () => {
+    it('should track skip reasons for oversized files', () => {
+      // Create a file > 1MB
+      const largeContent = 'const x = 1;\n'.repeat(100_000);
+      writeFileSync(join(FIXTURES_DIR, 'large.ts'), largeContent);
+
+      const evaluator = new RuleEvaluator({ sensitivity: 'balanced' });
+      try {
+        const result = evaluator.evaluate([FIXTURES_DIR]);
+        expect(result.filesSkipped).toBeGreaterThanOrEqual(1);
+        expect(result.skipReasons).toBeDefined();
+        expect(result.skipReasons!.tooLarge).toBeGreaterThanOrEqual(1);
+      } finally {
+        evaluator.close();
+      }
+    });
+
+    it('should not include skipReasons when no files are skipped', () => {
+      writeFileSync(join(FIXTURES_DIR, 'small.ts'), 'const x = 1;\n');
+
+      const evaluator = new RuleEvaluator({ sensitivity: 'balanced' });
+      try {
+        const result = evaluator.evaluate([FIXTURES_DIR]);
+        expect(result.filesSkipped).toBe(0);
+        expect(result.skipReasons).toBeUndefined();
+      } finally {
+        evaluator.close();
+      }
+    });
+  });
+
   describe('getRuleDatabase()', () => {
     it('should return the rule database instance', () => {
       const evaluator = new RuleEvaluator({ sensitivity: 'balanced' });

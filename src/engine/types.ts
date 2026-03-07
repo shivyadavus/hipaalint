@@ -238,6 +238,13 @@ export const ScanResultSchema = z.object({
   scanDurationMs: z.number(),
   timestamp: z.string().datetime(),
   timedOut: z.boolean().optional(),
+  skipReasons: z
+    .object({
+      binary: z.number(),
+      tooLarge: z.number(),
+      readError: z.number(),
+    })
+    .optional(),
 });
 export type ScanResult = z.infer<typeof ScanResultSchema>;
 
