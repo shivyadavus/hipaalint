@@ -174,7 +174,9 @@ program
       }
 
       // Always show disclaimer when findings exist
-      console.log(`--- This tool does not guarantee HIPAA compliance. Consult qualified professionals. ---\n`);
+      console.log(
+        `--- This tool does not guarantee HIPAA compliance. Consult qualified professionals. ---\n`,
+      );
 
       // Set exit code if critical findings exist
       if (criticals.length > 0) {
@@ -390,7 +392,9 @@ program
         console.log(`     📋 ${f.citation}\n`);
       }
 
-      console.log(`--- This tool does not guarantee HIPAA compliance. Consult qualified professionals. ---\n`);
+      console.log(
+        `--- This tool does not guarantee HIPAA compliance. Consult qualified professionals. ---\n`,
+      );
       process.exitCode = 1;
     } catch (_err) {
       console.error(`Error reading file: ${file}`);
