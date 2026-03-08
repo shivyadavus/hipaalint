@@ -23,6 +23,13 @@ const CATEGORY_TO_DOMAIN: Record<Category, keyof ComplianceScore['domainScores']
 };
 
 // ──────────────────────────────────────────────────
+// Clamping rule matchers (category + title-based, no hardcoded IDs)
+// ──────────────────────────────────────────────────
+
+const ENCRYPTION_AT_REST_KEYWORDS = ['encryption at rest', 'encryption and decryption'];
+const MFA_KEYWORDS = ['mfa', 'multi-factor', 'two-factor', 'multifactor'];
+
+// ──────────────────────────────────────────────────
 // Score Calculator
 // ──────────────────────────────────────────────────
 
@@ -47,8 +54,14 @@ export class ScoreCalculator {
     // Apply clamping rules
     overallScore = this.applyClampRules(overallScore, scanResult.findings);
 
+    // Empty project guard: if no files were scanned, score is not meaningful
+    if (scanResult.filesScanned === 0) {
+      overallScore = 0;
+    }
+
     // Determine band
-    const band = this.determineBand(overallScore);
+    const band =
+      scanResult.filesScanned === 0 ? ('critical' as ScoreBand) : this.determineBand(overallScore);
 
     return {
       overallScore: Math.round(overallScore * 10) / 10,
@@ -194,25 +207,44 @@ export class ScoreCalculator {
 
   /**
    * Apply score clamping rules per PRD Section 6.
+   * Uses category + keyword matching instead of hardcoded rule IDs for resilience.
+   * Graduated clamping: more critical findings produce a lower cap.
    */
   private applyClampRules(score: number, findings: ComplianceFinding[]): number {
     let clampedScore = score;
 
-    // Critical PHI finding → capped at 69
-    const hasCriticalPHI = findings.some(
+    // Count critical PHI findings for graduated clamping
+    const criticalPHICount = findings.filter(
       (f) => f.category === 'phi_protection' && f.severity === 'critical',
-    );
-    if (hasCriticalPHI) {
-      clampedScore = Math.min(clampedScore, SCORE_CLAMP_RULES.criticalPHIFinding);
+    ).length;
+
+    if (criticalPHICount >= 6) {
+      clampedScore = Math.min(clampedScore, SCORE_CLAMP_RULES.manyCriticalPHI); // 6+ → max 49
+    } else if (criticalPHICount >= 2) {
+      clampedScore = Math.min(clampedScore, SCORE_CLAMP_RULES.multipleCriticalPHI); // 2-5 → max 59
+    } else if (criticalPHICount >= 1) {
+      clampedScore = Math.min(clampedScore, SCORE_CLAMP_RULES.criticalPHIFinding); // 1 → max 69
     }
 
-    // No encryption at rest → capped at 59
+    // No encryption at rest → capped at 59 (match by category + title keywords)
     const hasNoEncryption = findings.some(
       (f) =>
-        f.category === 'encryption' && f.severity === 'critical' && f.ruleId.includes('ENC-003'),
+        f.category === 'encryption' &&
+        f.severity === 'critical' &&
+        ENCRYPTION_AT_REST_KEYWORDS.some((kw) => f.title.toLowerCase().includes(kw)),
     );
     if (hasNoEncryption) {
       clampedScore = Math.min(clampedScore, SCORE_CLAMP_RULES.noEncryptionAtRest);
+    }
+
+    // No MFA enforcement → capped at 79 (match by category + title keywords)
+    const hasMFAFinding = findings.some(
+      (f) =>
+        f.category === 'access_control' &&
+        MFA_KEYWORDS.some((kw) => f.title.toLowerCase().includes(kw)),
+    );
+    if (hasMFAFinding) {
+      clampedScore = Math.min(clampedScore, SCORE_CLAMP_RULES.noMFAEnforcement);
     }
 
     return clampedScore;
@@ -222,7 +254,7 @@ export class ScoreCalculator {
    * Determine score band from overall score.
    */
   private determineBand(score: number): ScoreBand {
-    if (score >= SCORE_BAND_THRESHOLDS.compliant) return 'compliant';
+    if (score >= SCORE_BAND_THRESHOLDS.strong) return 'strong';
     if (score >= SCORE_BAND_THRESHOLDS.needs_improvement) return 'needs_improvement';
     if (score >= SCORE_BAND_THRESHOLDS.at_risk) return 'at_risk';
     return 'critical';

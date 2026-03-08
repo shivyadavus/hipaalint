@@ -43,7 +43,7 @@ function createMockReport(findingsCount = 1): ComplianceReport {
     generatedAt: '2026-01-15T00:00:00.000Z',
     score: {
       overallScore: 85,
-      band: 'compliant',
+      band: 'strong',
       domainScores: {
         phiProtection: emptyDomain,
         encryption: emptyDomain,
@@ -55,7 +55,7 @@ function createMockReport(findingsCount = 1): ComplianceReport {
       metadata: {
         scannedAt: '2026-01-15T00:00:00.000Z',
         filesScanned: 10,
-        rulesEvaluated: 29,
+        rulesEvaluated: 33,
         framework: 'hipaa',
         sensitivity: 'balanced',
         engineVersion: '1.0.0',
@@ -107,7 +107,7 @@ describe('JSON Report Generator', () => {
       const outputPath = generateJsonReport(report, TEST_OUTPUT_DIR);
       const content = JSON.parse(readFileSync(outputPath, 'utf-8'));
       expect(content.score.overallScore).toBe(85);
-      expect(content.score.band).toBe('compliant');
+      expect(content.score.band).toBe('strong');
     });
 
     it('should flatten domain scores (no circular refs)', () => {
@@ -117,6 +117,14 @@ describe('JSON Report Generator', () => {
       // Domain scores should have findingsCount instead of findings array
       expect(content.score.domainScores.phiProtection).toHaveProperty('findingsCount');
       expect(content.score.domainScores.phiProtection).not.toHaveProperty('findings');
+    });
+
+    it('should include disclaimer field', () => {
+      const report = createMockReport();
+      const outputPath = generateJsonReport(report, TEST_OUTPUT_DIR);
+      const content = JSON.parse(readFileSync(outputPath, 'utf-8'));
+      expect(content).toHaveProperty('disclaimer');
+      expect(content.disclaimer).toContain('does not guarantee HIPAA compliance');
     });
 
     it('should handle empty findings', () => {
@@ -144,6 +152,14 @@ describe('JSON Report Generator', () => {
       const outputPath = generateSarifReport(report, TEST_OUTPUT_DIR);
       const sarif = JSON.parse(readFileSync(outputPath, 'utf-8'));
       expect(sarif.runs[0].results).toHaveLength(3);
+    });
+
+    it('should include disclaimer in SARIF properties', () => {
+      const report = createMockReport(1);
+      const outputPath = generateSarifReport(report, TEST_OUTPUT_DIR);
+      const sarif = JSON.parse(readFileSync(outputPath, 'utf-8'));
+      expect(sarif.runs[0]).toHaveProperty('properties');
+      expect(sarif.runs[0].properties.disclaimer).toContain('does not guarantee HIPAA compliance');
     });
 
     it('should map high severity to error level', () => {

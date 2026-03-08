@@ -10,7 +10,7 @@ import { generatePdfReport } from '../reports/pdf-report.js';
 import { PHIDetector } from '../engine/phi-detector.js';
 import type { ComplianceReport } from '../engine/types.js';
 import { randomUUID } from 'crypto';
-import { resolve, basename } from 'path';
+import { resolve, basename, relative, sep } from 'path';
 import { readFileSync } from 'fs';
 import {
   SecurityError,
@@ -24,6 +24,38 @@ import {
 } from '../security/index.js';
 
 const VERSION = '0.1.0';
+
+// ──────────────────────────────────────────────────
+// Graceful shutdown — close resources on interrupt
+// ──────────────────────────────────────────────────
+
+const cleanupHandlers: Array<() => void> = [];
+
+function registerCleanup(handler: () => void): void {
+  cleanupHandlers.push(handler);
+}
+
+function runCleanup(): void {
+  for (const handler of cleanupHandlers) {
+    try {
+      handler();
+    } catch {
+      // Best-effort cleanup
+    }
+  }
+  cleanupHandlers.length = 0;
+}
+
+process.on('SIGINT', () => {
+  console.error('\n⚠️  Interrupted — cleaning up...');
+  runCleanup();
+  process.exit(130);
+});
+
+process.on('SIGTERM', () => {
+  runCleanup();
+  process.exit(143);
+});
 
 const program = new Command();
 
@@ -62,7 +94,10 @@ program
   .option('--sarif', 'Output as SARIF')
   .option('--fix', 'Auto-fix simple violations (http→https, weak TLS, CORS wildcard)')
   .option('--dry-run', 'Preview fixes without writing changes (requires --fix)')
+  .option('-e, --exclude <dirs...>', 'Directories or patterns to exclude (e.g. data vendor)')
   .option('--max-files <n>', 'Max files to scan', '10000')
+  .option('--max-depth <n>', 'Max directory depth to traverse', '50')
+  .option('--timeout <ms>', 'Scan timeout in milliseconds', '60000')
   .action(async (path: string, options) => {
     let targetPath: string;
     let validated: z.infer<typeof ScanOptionsSchema>;
@@ -85,9 +120,13 @@ program
     }
 
     const evaluator = new RuleEvaluator({ sensitivity });
+    registerCleanup(() => evaluator.close());
     try {
       const result = evaluator.evaluate([targetPath], validated.framework, {
+        ignore: validated.exclude,
         maxFiles: validated.maxFiles,
+        maxDepth: validated.maxDepth,
+        timeoutMs: validated.timeout,
       });
 
       if (jsonOutput) {
@@ -103,6 +142,14 @@ program
 
       console.log(`📊 Results:`);
       console.log(`   Files scanned: ${result.filesScanned}`);
+      if (result.filesSkipped > 0) {
+        const parts: string[] = [];
+        if (result.skipReasons?.binary) parts.push(`${result.skipReasons.binary} binary`);
+        if (result.skipReasons?.tooLarge) parts.push(`${result.skipReasons.tooLarge} too large`);
+        if (result.skipReasons?.readError) parts.push(`${result.skipReasons.readError} unreadable`);
+        const detail = parts.length > 0 ? ` (${parts.join(', ')})` : '';
+        console.log(`   Files skipped: ${result.filesSkipped}${detail}`);
+      }
       console.log(`   Rules evaluated: ${result.rulesEvaluated}`);
       console.log(`   Duration: ${result.scanDurationMs}ms\n`);
       console.log(`   🔴 Critical: ${criticals.length}`);
@@ -116,7 +163,7 @@ program
       }
 
       for (const f of result.findings) {
-        const relPath = f.filePath.replace(targetPath + '/', '');
+        const relPath = relative(targetPath, f.filePath).split(sep).join('/');
         const icon =
           f.severity === 'critical'
             ? '🔴'
@@ -149,7 +196,7 @@ program
           }
 
           for (const fix of fixResult.applied) {
-            const relPath = fix.filePath.replace(targetPath + '/', '');
+            const relPath = relative(targetPath, fix.filePath).split(sep).join('/');
             console.log(`   ✅ ${fix.ruleId} — ${relPath}:${fix.lineNumber}`);
             console.log(`      ${fix.description}`);
             console.log(`      - ${fix.originalLine.trim()}`);
@@ -169,12 +216,13 @@ program
         }
       }
 
+      // Always show disclaimer when findings exist
+      console.log(
+        `--- This tool does not guarantee HIPAA compliance. Consult qualified professionals. ---\n`,
+      );
+
       // Set exit code if critical findings exist
       if (criticals.length > 0) {
-        console.log(`\n======================================================`);
-        console.log(`⚠️  DISCLAIMER: HipaaLint AI is a static analysis`);
-        console.log(`   tool and does NOT guarantee full HIPAA compliance.`);
-        console.log(`======================================================\n`);
         process.exit(1);
       }
     } finally {
@@ -207,6 +255,7 @@ program
     const sensitivity = validated.sensitivity;
 
     const evaluator = new RuleEvaluator({ sensitivity });
+    registerCleanup(() => evaluator.close());
     try {
       const result = evaluator.evaluate([targetPath], validated.framework);
       const calculator = new ScoreCalculator();
@@ -218,7 +267,7 @@ program
       }
 
       const bandEmoji: Record<string, string> = {
-        compliant: '🟢',
+        strong: '🟢',
         needs_improvement: '🟡',
         at_risk: '🟠',
         critical: '🔴',
@@ -286,6 +335,7 @@ program
     console.log(`\n🛡️  Generating ${validated.format.toUpperCase()} report...\n`);
 
     const evaluator = new RuleEvaluator({ sensitivity });
+    registerCleanup(() => evaluator.close());
     try {
       const result = evaluator.evaluate([targetPath], validated.framework);
       const calculator = new ScoreCalculator();
@@ -340,7 +390,8 @@ program
 
       console.log(`✅ Report saved: ${reportPath}`);
       console.log(`   Score: ${score.overallScore}/100 (${score.band})`);
-      console.log(`   Findings: ${result.findings.length}\n`);
+      console.log(`   Findings: ${result.findings.length}`);
+      console.log(`   Note: This report does not guarantee HIPAA compliance.\n`);
     } finally {
       evaluator.close();
     }
@@ -386,6 +437,9 @@ program
         console.log(`     📋 ${f.citation}\n`);
       }
 
+      console.log(
+        `--- This tool does not guarantee HIPAA compliance. Consult qualified professionals. ---\n`,
+      );
       process.exitCode = 1;
     } catch (_err) {
       console.error(`Error reading file: ${file}`);
@@ -413,6 +467,7 @@ program
     }
 
     const evaluator = new RuleEvaluator();
+    registerCleanup(() => evaluator.close());
     const db = evaluator.getRuleDatabase();
 
     try {

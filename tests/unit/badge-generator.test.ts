@@ -31,7 +31,7 @@ function createMockScore(overallScore: number, band: ComplianceScore['band']): C
     metadata: {
       scannedAt: new Date().toISOString(),
       filesScanned: 10,
-      rulesEvaluated: 29,
+      rulesEvaluated: 33,
       framework: 'hipaa',
       sensitivity: 'balanced',
       engineVersion: '1.0.0',
@@ -42,19 +42,19 @@ function createMockScore(overallScore: number, band: ComplianceScore['band']): C
 describe('Badge Generator', () => {
   describe('generateBadgeUrl', () => {
     it('should return shields.io URL', () => {
-      const score = createMockScore(92, 'compliant');
+      const score = createMockScore(92, 'strong');
       const url = generateBadgeUrl(score);
       expect(url).toContain('https://img.shields.io/badge/');
     });
 
     it('should include score value in URL', () => {
-      const score = createMockScore(85, 'compliant');
+      const score = createMockScore(85, 'strong');
       const url = generateBadgeUrl(score);
       expect(url).toContain('85');
     });
 
     it('should use green color for compliant band', () => {
-      const score = createMockScore(92, 'compliant');
+      const score = createMockScore(92, 'strong');
       const url = generateBadgeUrl(score);
       expect(url).toContain('00c853');
     });
@@ -74,19 +74,19 @@ describe('Badge Generator', () => {
 
   describe('generateBadgeMarkdown', () => {
     it('should return valid markdown image link', () => {
-      const score = createMockScore(85, 'compliant');
+      const score = createMockScore(85, 'strong');
       const md = generateBadgeMarkdown(score, 'https://github.com/test/repo');
       expect(md).toMatch(/^\[!\[HipaaLint Score\]\(.*\)\]\(.*\)$/);
     });
 
     it('should use provided repo URL', () => {
-      const score = createMockScore(85, 'compliant');
+      const score = createMockScore(85, 'strong');
       const md = generateBadgeMarkdown(score, 'https://github.com/test/repo');
       expect(md).toContain('https://github.com/test/repo');
     });
 
     it('should use # when no repo URL provided', () => {
-      const score = createMockScore(85, 'compliant');
+      const score = createMockScore(85, 'strong');
       const md = generateBadgeMarkdown(score);
       expect(md).toContain('](#)');
     });
@@ -94,26 +94,26 @@ describe('Badge Generator', () => {
 
   describe('generateBadgeSvg', () => {
     it('should return valid SVG string', () => {
-      const score = createMockScore(85, 'compliant');
+      const score = createMockScore(85, 'strong');
       const svg = generateBadgeSvg(score);
       expect(svg).toContain('<svg');
       expect(svg).toContain('</svg>');
     });
 
     it('should include score value in SVG', () => {
-      const score = createMockScore(85, 'compliant');
+      const score = createMockScore(85, 'strong');
       const svg = generateBadgeSvg(score);
       expect(svg).toContain('85/100');
     });
 
     it('should use band-appropriate color', () => {
-      const score = createMockScore(85, 'compliant');
+      const score = createMockScore(85, 'strong');
       const svg = generateBadgeSvg(score);
       expect(svg).toContain('#00c853');
     });
 
     it('should include HipaaLint label', () => {
-      const score = createMockScore(85, 'compliant');
+      const score = createMockScore(85, 'strong');
       const svg = generateBadgeSvg(score);
       expect(svg).toContain('HipaaLint');
     });

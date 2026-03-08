@@ -11,7 +11,7 @@ import { generatePdfReport } from '../reports/pdf-report.js';
 import type { ComplianceFinding, ComplianceReport } from '../engine/types.js';
 import { countFindings } from '../engine/finding-counter.js';
 import { randomUUID } from 'crypto';
-import { basename } from 'path';
+import { basename, relative, sep } from 'path';
 import {
   SecurityError,
   validateScanPath,
@@ -66,6 +66,16 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
             enum: ['strict', 'balanced', 'relaxed'],
             description: 'Detection sensitivity level (default: balanced)',
             default: 'balanced',
+          },
+          maxDepth: {
+            type: 'number',
+            description: 'Maximum directory depth to traverse (default: 50, max: 200)',
+            default: 50,
+          },
+          timeout: {
+            type: 'number',
+            description: 'Scan timeout in milliseconds (default: 60000, max: 300000)',
+            default: 60000,
           },
         },
         required: ['path'],
@@ -233,7 +243,7 @@ async function handleScan(args: Record<string, unknown>) {
   try {
     validated = MCPScanArgsSchema.parse(args);
     path = validateScanPath(validated.path);
-  } catch (err) {
+  } catch (err: unknown) {
     return {
       content: [{ type: 'text' as const, text: formatValidationError(err) }],
       isError: true,
@@ -242,7 +252,10 @@ async function handleScan(args: Record<string, unknown>) {
 
   const evaluator = new RuleEvaluator({ sensitivity: validated.sensitivity });
   try {
-    const result = evaluator.evaluate([path], validated.framework);
+    const result = evaluator.evaluate([path], validated.framework, {
+      maxDepth: validated.maxDepth,
+      timeoutMs: validated.timeout,
+    });
 
     // Format output using single-pass counting
     const counts = countFindings(result.findings);
@@ -276,7 +289,7 @@ async function handleScan(args: Record<string, unknown>) {
         if (findings.length > 0) {
           output += `### ${icon} ${label} (${findings.length})\n\n`;
           for (const f of findings) {
-            const relPath = f.filePath.replace(path + '/', '');
+            const relPath = relative(path, f.filePath).split(sep).join('/');
             output += `- **${f.ruleId}** ${f.title}\n`;
             output += `  📍 \`${relPath}:${f.lineNumber}\`\n`;
             output += `  📋 ${f.citation}\n`;
@@ -314,7 +327,7 @@ async function handleScore(args: Record<string, unknown>) {
     const score = calculator.calculateScore(result, validated.framework, validated.sensitivity);
 
     const bandEmoji: Record<string, string> = {
-      compliant: '🟢',
+      strong: '🟢',
       needs_improvement: '🟡',
       at_risk: '🟠',
       critical: '🔴',
@@ -395,7 +408,7 @@ async function handleReport(args: Record<string, unknown>) {
       content: [
         {
           type: 'text' as const,
-          text: `✅ Report generated: ${reportPath}\n\nScore: ${score.overallScore}/100 (${score.band})\nFindings: ${result.findings.length}`,
+          text: `✅ Report generated: ${reportPath}\n\nScore: ${score.overallScore}/100 (${score.band})\nFindings: ${result.findings.length}\n\nNote: HipaaLint AI does not guarantee HIPAA compliance.`,
         },
       ],
     };

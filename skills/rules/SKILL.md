@@ -1,7 +1,7 @@
 ---
 name: rules
 description: >
-  List and search HIPAA compliance rules in the HipaaLint database. Browse all 29
+  List and search HIPAA compliance rules in the HipaaLint database. Browse all 33
   rules across 6 categories, filter by severity or category, and search by keyword.
   Each rule includes HIPAA citations and remediation guidance.
 user-invocable: true
@@ -27,7 +27,7 @@ List and search HIPAA compliance rules.
 
 ## What It Does
 
-1. Queries the HipaaLint rule database (29 HIPAA Security Rule requirements)
+1. Queries the HipaaLint rule database (33 HIPAA Security Rule requirements)
 2. Applies optional filters by category, severity, or keyword
 3. Returns matching rules with ID, title, severity, category, and description
 
@@ -45,7 +45,7 @@ List and search HIPAA compliance rules.
 ## Example Output
 
 ```
-HipaaLint Rules (29)
+HipaaLint Rules (33)
 
   HIPAA-PHI-001: PHI in Log Statements
     Severity: critical | Category: phi_protection

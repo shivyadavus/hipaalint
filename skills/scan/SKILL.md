@@ -27,7 +27,7 @@ Scan the current project for HIPAA compliance violations.
 ## What It Does
 
 1. Scans all source files for PHI exposure patterns
-2. Evaluates code against 29 HIPAA Security Rule requirements
+2. Evaluates code against 33 HIPAA Security Rule requirements
 3. Checks encryption, access control, audit logging, and infrastructure
 4. Returns findings grouped by severity (critical, high, medium, low)
 
@@ -35,7 +35,7 @@ Scan the current project for HIPAA compliance violations.
 
 ```
 HipaaLint Scan Results
-Files scanned: 47  |  Rules evaluated: 29
+Files scanned: 47  |  Rules evaluated: 33
 
 CRITICAL (2)
   HIPAA-PHI-001  PHI in Log Statements     src/services/patient.ts:45

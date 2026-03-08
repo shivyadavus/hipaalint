@@ -12,12 +12,25 @@ export const ScanOptionsSchema = z.object({
   sarif: z.boolean().optional(),
   fix: z.boolean().optional(),
   dryRun: z.boolean().optional(),
+  exclude: z.array(z.string()).optional(),
   maxFiles: z
     .string()
     .regex(/^\d+$/, 'maxFiles must be a positive integer')
     .transform(Number)
     .pipe(z.number().int().min(1).max(100_000))
     .default('10000'),
+  maxDepth: z
+    .string()
+    .regex(/^\d+$/, 'maxDepth must be a positive integer')
+    .transform(Number)
+    .pipe(z.number().int().min(1).max(200))
+    .default('50'),
+  timeout: z
+    .string()
+    .regex(/^\d+$/, 'timeout must be a positive integer (ms)')
+    .transform(Number)
+    .pipe(z.number().int().min(1000).max(300_000))
+    .default('60000'),
 });
 
 export const ScoreOptionsSchema = z.object({
@@ -58,6 +71,8 @@ export const MCPScanArgsSchema = z.object({
   path: z.string().min(1, 'path is required'),
   framework: z.string().default('hipaa'),
   sensitivity: SensitivityLevel.default('balanced'),
+  maxDepth: z.number().int().min(1).max(200).default(50),
+  timeout: z.number().int().min(1000).max(300_000).default(60_000),
 });
 
 export const MCPScoreArgsSchema = z.object({

@@ -14,6 +14,8 @@ export function generateJsonReport(report: ComplianceReport, outputDir: string):
   // Create a clean report without circular references
   const cleanReport = {
     ...report,
+    disclaimer:
+      'HipaaLint AI is an automated static analysis tool. It does not guarantee HIPAA compliance. Consult qualified legal and compliance professionals.',
     score: {
       ...report.score,
       domainScores: Object.fromEntries(
@@ -79,6 +81,10 @@ export function generateSarifReport(report: ComplianceReport, outputDir: string)
                 };
               }),
           },
+        },
+        properties: {
+          disclaimer:
+            'HipaaLint AI is an automated static analysis tool. It does not guarantee HIPAA compliance.',
         },
         results: report.findings.map((f) => ({
           ruleId: f.ruleId,

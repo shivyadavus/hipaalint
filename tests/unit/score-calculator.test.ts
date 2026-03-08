@@ -27,7 +27,7 @@ function createScanResult(findings: ComplianceFinding[] = []): ScanResult {
     findings,
     filesScanned: 10,
     filesSkipped: 0,
-    rulesEvaluated: 29,
+    rulesEvaluated: 33,
     scanDurationMs: 100,
     timestamp: new Date().toISOString(),
   };
@@ -41,7 +41,7 @@ describe('ScoreCalculator', () => {
       const result = createScanResult([]);
       const score = calculator.calculateScore(result);
       expect(score.overallScore).toBe(100);
-      expect(score.band).toBe('compliant');
+      expect(score.band).toBe('strong');
     });
 
     it('should penalize critical findings heavily', () => {
@@ -72,7 +72,7 @@ describe('ScoreCalculator', () => {
     it('should assign correct bands', () => {
       // No findings → compliant
       let score = calculator.calculateScore(createScanResult([]));
-      expect(score.band).toBe('compliant');
+      expect(score.band).toBe('strong');
 
       // Many findings → lower band
       const manyFindings = Array(20)
@@ -99,7 +99,7 @@ describe('ScoreCalculator', () => {
       expect(score.metadata.framework).toBe('hipaa');
       expect(score.metadata.sensitivity).toBe('balanced');
       expect(score.metadata.filesScanned).toBe(10);
-      expect(score.metadata.rulesEvaluated).toBe(29);
+      expect(score.metadata.rulesEvaluated).toBe(33);
     });
 
     it('should group findings into correct domains', () => {
@@ -113,6 +113,39 @@ describe('ScoreCalculator', () => {
       expect(score.domainScores.phiProtection.findings.length).toBe(1);
       expect(score.domainScores.encryption.findings.length).toBe(1);
       expect(score.domainScores.accessControl.findings.length).toBe(1);
+    });
+
+    it('should clamp score to 59 for multiple critical PHI findings', () => {
+      const result = createScanResult(
+        Array(3)
+          .fill(null)
+          .map(() => createFinding({ severity: 'critical', category: 'phi_protection' })),
+      );
+      const score = calculator.calculateScore(result);
+      expect(score.overallScore).toBeLessThanOrEqual(59);
+    });
+
+    it('should clamp score to 49 for 6+ critical PHI findings', () => {
+      const result = createScanResult(
+        Array(7)
+          .fill(null)
+          .map(() => createFinding({ severity: 'critical', category: 'phi_protection' })),
+      );
+      const score = calculator.calculateScore(result);
+      expect(score.overallScore).toBeLessThanOrEqual(49);
+    });
+
+    it('should clamp score to 79 for MFA finding', () => {
+      const result = createScanResult([
+        createFinding({
+          severity: 'high',
+          category: 'access_control',
+          ruleId: 'HIPAA-AC-004',
+          title: 'Missing MFA Implementation',
+        }),
+      ]);
+      const score = calculator.calculateScore(result);
+      expect(score.overallScore).toBeLessThanOrEqual(79);
     });
 
     it('should weight domains correctly', () => {

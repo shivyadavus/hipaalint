@@ -13,7 +13,7 @@ VALUES ('hipaa', '2025.1', 'Health Insurance Portability and Accountability Act 
 
 INSERT INTO rules (framework_id, rule_id, title, description, severity, category, citation, remediation, pattern_type, pattern_config, is_required)
 VALUES
-(1, 'HIPAA-PHI-001', 'PHI in Log Statements', 'Detects potential PHI (names, SSN, DOB, medical records) in log/print statements.', 'critical', 'phi_protection', '45 CFR §164.502(a) — Minimum Necessary', 'Remove PHI from all log statements. Use tokenized identifiers instead of real patient data.', 'ast_pattern', '{"nodeTypes":["call_expression"],"functionNames":["console.log","console.error","console.warn","console.info","console.debug","logger.info","logger.warn","logger.error","logger.debug","print","logging.info","logging.warning","logging.error","logging.debug"],"checkArguments":true}', 1),
+(1, 'HIPAA-PHI-001', 'PHI in Log Statements', 'Detects potential PHI (names, SSN, DOB, medical records) in log/print statements.', 'critical', 'phi_protection', '45 CFR §164.502(a) — Minimum Necessary', 'Remove PHI from all log statements. Use tokenized identifiers instead of real patient data.', 'semantic_pattern', '{"nodeTypes":["call_expression"],"functionNames":["console.log","console.error","console.warn","console.info","console.debug","logger.info","logger.warn","logger.error","logger.debug","print","logging.info","logging.warning","logging.error","logging.debug"],"checkArguments":true}', 1),
 
 (1, 'HIPAA-PHI-002', 'SSN Pattern in Source Code', 'Detects Social Security Number patterns (XXX-XX-XXXX) in source code.', 'critical', 'phi_protection', '45 CFR §164.514(a) — De-identification', 'Never hardcode SSNs. Use environment variables or secure vault references.', 'code_pattern', '{"regex":"\\\\b\\\\d{3}-\\\\d{2}-\\\\d{4}\\\\b","exclude":["*.test.*","*.spec.*"]}', 1),
 
@@ -29,9 +29,9 @@ VALUES
 
 (1, 'HIPAA-PHI-008', 'Medical Record Number Exposure', 'Detects medical record numbers in code or logs.', 'critical', 'phi_protection', '45 CFR §164.514(b)(2)(i)(F) — Medical record numbers', 'Never log or expose MRN. Use encrypted references.', 'code_pattern', '{"variableNames":["mrn","medicalRecordNumber","medical_record_number","medicalRecordNum","medical_record_num"],"caseSensitive":false}', 1),
 
-(1, 'HIPAA-PHI-009', 'PHI in API Response', 'Detects potential PHI being returned in API responses without proper authorization checks.', 'critical', 'phi_protection', '45 CFR §164.312(a)(1) — Access Control', 'Implement response filtering. Only return PHI with proper authorization. Use DTOs to control response shape.', 'ast_pattern', '{"nodeTypes":["return_statement","object"],"checkForPHIFields":true,"apiContext":true}', 1),
+(1, 'HIPAA-PHI-009', 'PHI in API Response', 'Detects potential PHI being returned in API responses without proper authorization checks.', 'critical', 'phi_protection', '45 CFR §164.312(a)(1) — Access Control', 'Implement response filtering. Only return PHI with proper authorization. Use DTOs to control response shape.', 'semantic_pattern', '{"nodeTypes":["return_statement","object"],"checkForPHIFields":true,"apiContext":true}', 1),
 
-(1, 'HIPAA-PHI-010', 'PHI in Error Messages', 'Detects potential PHI exposure through error messages and exception handlers.', 'high', 'phi_protection', '45 CFR §164.502(a) — Minimum Necessary', 'Scrub all PHI from error messages. Use generic error codes.', 'ast_pattern', '{"nodeTypes":["catch_clause","except_clause"],"checkThrowContent":true}', 1);
+(1, 'HIPAA-PHI-010', 'PHI in Error Messages', 'Detects potential PHI exposure through error messages and exception handlers.', 'high', 'phi_protection', '45 CFR §164.502(a) — Minimum Necessary', 'Scrub all PHI from error messages. Use generic error codes.', 'semantic_pattern', '{"nodeTypes":["catch_clause","except_clause"],"checkThrowContent":true}', 1);
 
 -- ─────────────────────────────────────────────────
 -- DOMAIN 2: Encryption & Transport (20% weight)
@@ -57,13 +57,13 @@ VALUES
 
 INSERT INTO rules (framework_id, rule_id, title, description, severity, category, citation, remediation, pattern_type, pattern_config, is_required)
 VALUES
-(1, 'HIPAA-AC-001', 'Missing Authentication Middleware', 'Checks that API routes handling PHI have authentication middleware.', 'critical', 'access_control', '45 CFR §164.312(d) — Person or Entity Authentication', 'Add authentication middleware to all routes that access PHI. Use JWT or session-based auth.', 'ast_pattern', '{"routePatterns":["app.get","app.post","app.put","app.delete","router.get","router.post"],"requireMiddleware":["auth","authenticate","requireAuth","isAuthenticated","verifyToken"]}', 1),
+(1, 'HIPAA-AC-001', 'Missing Authentication Middleware', 'Checks that API routes handling PHI have authentication middleware.', 'critical', 'access_control', '45 CFR §164.312(d) — Person or Entity Authentication', 'Add authentication middleware to all routes that access PHI. Use JWT or session-based auth.', 'semantic_pattern', '{"routePatterns":["app.get","app.post","app.put","app.delete","router.get","router.post"],"requireMiddleware":["auth","authenticate","requireAuth","isAuthenticated","verifyToken"]}', 1),
 
 (1, 'HIPAA-AC-002', 'Missing Authorization Check', 'Detects PHI access without role-based authorization verification.', 'high', 'access_control', '45 CFR §164.312(a)(1) — Access Control', 'Implement RBAC. Check user roles before granting PHI access.', 'code_pattern', '{"patterns":["patient","medical","health","diagnosis","prescription"],"requireNearby":["authorize","checkRole","hasPermission","canAccess","rbac"]}', 1),
 
 (1, 'HIPAA-AC-003', 'Session Timeout Configuration', 'Checks for proper session timeout configuration (15-30 minutes per HIPAA).', 'medium', 'access_control', '45 CFR §164.312(a)(2)(iii) — Automatic Logoff', 'Set session timeout to 15-30 minutes. Implement idle timeout and absolute timeout.', 'config_pattern', '{"checkFiles":["*.env","*.config.*","session.*"],"patterns":["SESSION_TIMEOUT","sessionTimeout","maxAge","cookie.maxAge"],"maxValueMs":1800000}', 1),
 
-(1, 'HIPAA-AC-004', 'Missing MFA Implementation', 'Checks for multi-factor authentication implementation for PHI access.', 'high', 'access_control', '45 CFR §164.312(d) — Person or Entity Authentication', 'Implement MFA for all users accessing PHI. Use TOTP, WebAuthn, or SMS as second factor.', 'import_pattern', '{"requiredImports":["totp","mfa","two-factor","otplib","speakeasy","webauthn"],"context":"authentication"}', 1);
+(1, 'HIPAA-AC-004', 'Missing MFA Implementation', 'Checks for multi-factor authentication implementation for PHI access.', 'high', 'access_control', '45 CFR §164.312(d) — Person or Entity Authentication', 'Implement MFA for all users accessing PHI. Use TOTP, WebAuthn, or SMS as second factor.', 'import_pattern', '{"requiredImports":["totp","mfa","two-factor","otplib","speakeasy","webauthn","@auth0","amazon-cognito","@aws-sdk/client-cognito","@okta","firebase/auth","passport","next-auth","@clerk","supabase/auth"],"context":"authentication"}', 1);
 
 -- ─────────────────────────────────────────────────
 -- DOMAIN 4: Audit & Logging (15% weight)
@@ -71,7 +71,7 @@ VALUES
 
 INSERT INTO rules (framework_id, rule_id, title, description, severity, category, citation, remediation, pattern_type, pattern_config, is_required)
 VALUES
-(1, 'HIPAA-AL-001', 'Missing Audit Log Implementation', 'Checks that PHI access events are being logged for audit purposes.', 'high', 'audit_logging', '45 CFR §164.312(b) — Audit Controls', 'Implement audit logging for all PHI access, modification, and deletion events.', 'import_pattern', '{"requiredImports":["audit","audit-log","winston","pino","bunyan","log4js"],"context":"logging"}', 1),
+(1, 'HIPAA-AL-001', 'Missing Audit Log Implementation', 'Checks that PHI access events are being logged for audit purposes.', 'high', 'audit_logging', '45 CFR §164.312(b) — Audit Controls', 'Implement audit logging for all PHI access, modification, and deletion events.', 'import_pattern', '{"requiredImports":["audit","audit-log","winston","pino","bunyan","log4js","@sentry","datadog","morgan"],"context":"logging"}', 1),
 
 (1, 'HIPAA-AL-002', 'PHI in Audit Logs', 'Ensures audit logs do not contain actual PHI values.', 'critical', 'audit_logging', '45 CFR §164.502(a) — Minimum Necessary', 'Log only identifiers and event types. Never log actual PHI values in audit trails.', 'code_pattern', '{"auditContextPatterns":["audit.log","auditLog","audit_log","createAuditEntry"],"checkForPHI":true}', 1),
 
@@ -87,7 +87,21 @@ VALUES
 
 (1, 'HIPAA-INF-002', 'Missing Rate Limiting', 'Checks that API endpoints have rate limiting to prevent abuse.', 'medium', 'infrastructure', '45 CFR §164.312(a)(1) — Access Control', 'Implement rate limiting on all API endpoints. Use token bucket or sliding window algorithm.', 'import_pattern', '{"requiredImports":["rate-limit","express-rate-limit","ratelimit","throttle","bottleneck"],"context":"api"}', 1),
 
-(1, 'HIPAA-INF-003', 'Missing Security Headers', 'Checks for essential security headers (HSTS, CSP, X-Frame-Options).', 'medium', 'infrastructure', '45 CFR §164.312(e)(2)(ii) — Encryption', 'Use helmet.js or manually set security headers: HSTS, CSP, X-Content-Type-Options, X-Frame-Options.', 'import_pattern', '{"requiredImports":["helmet","csp","hsts"],"context":"security"}', 1);
+(1, 'HIPAA-INF-003', 'Missing Security Headers', 'Checks for essential security headers (HSTS, CSP, X-Frame-Options).', 'medium', 'infrastructure', '45 CFR §164.312(e)(2)(ii) — Encryption', 'Use helmet.js or manually set security headers: HSTS, CSP, X-Content-Type-Options, X-Frame-Options.', 'import_pattern', '{"requiredImports":["helmet","csp","hsts"],"context":"security"}', 1),
+
+(1, 'HIPAA-INF-004', 'Missing Network Segmentation', 'Checks for network segmentation configuration to isolate PHI-containing systems.', 'high', 'infrastructure', '45 CFR §164.312(e)(1) — Transmission Security', 'Implement network segmentation using VPCs, subnets, or firewall rules to isolate PHI systems.', 'config_pattern', '{"checkFiles":["*.env","*.config.*","*.yml","*.yaml","docker-compose.*","Dockerfile","*.tf"],"patterns":["vpc","subnet","firewall","NetworkPolicy","security_group","network_policy","segmentation","dmz"]}', 0),
+
+(1, 'HIPAA-INF-005', 'Missing Vulnerability Scanning', 'Checks for vulnerability scanning tools in the development pipeline.', 'medium', 'infrastructure', '45 CFR §164.308(a)(8) — Evaluation', 'Integrate vulnerability scanning (Snyk, Dependabot, Trivy, or npm audit) into CI/CD pipeline.', 'config_pattern', '{"checkFiles":["*.yml","*.yaml",".snyk","package.json",".github/**"],"patterns":["snyk","dependabot","trivy","npm audit","safety check","grype","clair","anchore"]}', 0),
+
+(1, 'HIPAA-INF-006', 'Missing Data Backup Configuration', 'Checks for data backup and disaster recovery configuration.', 'high', 'infrastructure', '45 CFR §164.308(a)(7)(ii)(A) — Data Backup Plan', 'Configure automated backups, snapshots, or replication for all PHI data stores.', 'config_pattern', '{"checkFiles":["*.env","*.config.*","*.yml","*.yaml","*.tf","docker-compose.*"],"patterns":["backup","snapshot","replication","disaster_recovery","recovery_point","rpo","rto","failover"]}', 0);
+
+-- ─────────────────────────────────────────────────
+-- DOMAIN 4 (continued): Breach Notification
+-- ─────────────────────────────────────────────────
+
+INSERT INTO rules (framework_id, rule_id, title, description, severity, category, citation, remediation, pattern_type, pattern_config, is_required)
+VALUES
+(1, 'HIPAA-AL-004', 'Missing Breach Notification Process', 'Checks for breach notification and incident response configuration.', 'high', 'audit_logging', '45 CFR §164.408 — Notification to the Secretary', 'Implement incident response and breach notification procedures. Integrate with alerting tools like PagerDuty or Opsgenie.', 'config_pattern', '{"checkFiles":["*.env","*.config.*","*.yml","*.yaml","*.md"],"patterns":["incident_response","breach_notification","pagerduty","opsgenie","incident_management","security_incident","breach_report"]}', 0);
 
 -- ─────────────────────────────────────────────────
 -- DOMAIN 6: AI & Data Governance (10% weight)
