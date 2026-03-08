@@ -946,6 +946,14 @@ export class RuleEvaluator {
    */
   private sanitizeCodeSnippet(line: string): string {
     let sanitized = line.trim();
+    // Redact known PHI patterns to prevent leakage in reports
+    sanitized = sanitized.replace(/\b\d{3}-\d{2}-\d{4}\b/g, '[REDACTED-SSN]');
+    sanitized = sanitized.replace(
+      /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g,
+      '[REDACTED-EMAIL]',
+    );
+    sanitized = sanitized.replace(/\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g, '[REDACTED-PHONE]');
+    sanitized = sanitized.replace(/\bMRN[-_:# ]?\d{4,12}\b/gi, '[REDACTED-MRN]');
     // Truncate long lines
     if (sanitized.length > 200) {
       sanitized = sanitized.substring(0, 200) + '...';

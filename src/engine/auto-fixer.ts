@@ -225,9 +225,6 @@ export class AutoFixer {
    * Excludes localhost, 127.0.0.1, and 0.0.0.0 (safe for local dev).
    */
   private fixUnencryptedHttp(line: string): { fixedLine: string; description: string } | null {
-    const regex = /http:\/\/(?!localhost|127\.0\.0\.1|0\.0\.0\.0)/g;
-    if (!regex.test(line)) return null;
-
     const fixedLine = line.replace(/http:\/\/(?!localhost|127\.0\.0\.1|0\.0\.0\.0)/g, 'https://');
     if (fixedLine === line) return null;
     return {
@@ -241,9 +238,6 @@ export class AutoFixer {
    * Handles TLSv1_0, TLSv1_1, SSLv3, ssl3, tls1_0, tls1_1.
    */
   private fixWeakTLS(line: string): { fixedLine: string; description: string } | null {
-    const weakPattern = /\b(TLSv1_0|TLSv1_1|SSLv3|ssl3|tls1_0|tls1_1)\b/g;
-    if (!weakPattern.test(line)) return null;
-
     const fixedLine = line.replace(/\b(TLSv1_0|TLSv1_1|SSLv3|ssl3|tls1_0|tls1_1)\b/g, (match) => {
       // Preserve casing convention
       if (/^[A-Z]/.test(match)) return 'TLSv1_2';
