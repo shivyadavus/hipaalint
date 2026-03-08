@@ -8,9 +8,9 @@ import { AutoFixer, getFixableRuleIds } from '../engine/auto-fixer.js';
 import { generateJsonReport, generateSarifReport } from '../reports/json-report.js';
 import { generatePdfReport } from '../reports/pdf-report.js';
 import { PHIDetector } from '../engine/phi-detector.js';
-import type { ComplianceReport } from '../engine/types.js';
-import { randomUUID } from 'crypto';
-import { resolve, basename, relative, sep } from 'path';
+import { buildReport } from '../reports/report-builder.js';
+import { VERSION } from '../version.js';
+import { resolve, relative, sep } from 'path';
 import { readFileSync } from 'fs';
 import {
   SecurityError,
@@ -22,8 +22,6 @@ import {
   PHIOptionsSchema,
   RulesOptionsSchema,
 } from '../security/index.js';
-
-const VERSION = '0.1.0';
 
 // ──────────────────────────────────────────────────
 // Graceful shutdown — close resources on interrupt
@@ -341,40 +339,7 @@ program
       const calculator = new ScoreCalculator();
       const score = calculator.calculateScore(result, validated.framework, sensitivity);
 
-      const report: ComplianceReport = {
-        id: randomUUID(),
-        version: VERSION,
-        projectName: basename(targetPath),
-        projectPath: targetPath,
-        generatedAt: new Date().toISOString(),
-        score,
-        findings: result.findings,
-        summary: {
-          totalFindings: result.findings.length,
-          bySeverity: {
-            critical: result.findings.filter((f) => f.severity === 'critical').length,
-            high: result.findings.filter((f) => f.severity === 'high').length,
-            medium: result.findings.filter((f) => f.severity === 'medium').length,
-            low: result.findings.filter((f) => f.severity === 'low').length,
-            info: result.findings.filter((f) => f.severity === 'info').length,
-          },
-          byCategory: {
-            phi_protection: result.findings.filter((f) => f.category === 'phi_protection').length,
-            encryption: result.findings.filter((f) => f.category === 'encryption').length,
-            access_control: result.findings.filter((f) => f.category === 'access_control').length,
-            audit_logging: result.findings.filter((f) => f.category === 'audit_logging').length,
-            infrastructure: result.findings.filter((f) => f.category === 'infrastructure').length,
-            ai_governance: result.findings.filter((f) => f.category === 'ai_governance').length,
-          },
-        },
-        recommendations: [],
-        metadata: {
-          hipaalintVersion: VERSION,
-          rulesVersion: '2025.1',
-          frameworksEvaluated: [validated.framework],
-          sensitivity,
-        },
-      };
+      const report = buildReport(result, score, targetPath, validated.framework, sensitivity);
 
       let reportPath: string;
       switch (validated.format) {

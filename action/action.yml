@@ -62,14 +62,14 @@ runs:
         
         # Run scan and capture output
         hipaalint scan "$SCAN_PATH" \
-          --framework ${{ inputs.framework }} \
-          --sensitivity ${{ inputs.sensitivity }} \
+          --framework "${{ inputs.framework }}" \
+          --sensitivity "${{ inputs.sensitivity }}" \
           --json > /tmp/scan-results.json 2>&1 || true
         
         # Run score
         SCORE_JSON=$(hipaalint score "$SCAN_PATH" \
-          --framework ${{ inputs.framework }} \
-          --sensitivity ${{ inputs.sensitivity }} \
+          --framework "${{ inputs.framework }}" \
+          --sensitivity "${{ inputs.sensitivity }}" \
           --json 2>/dev/null)
         
         SCORE=$(echo "$SCORE_JSON" | jq -r '.overallScore')
@@ -82,9 +82,9 @@ runs:
         
         # Generate report
         hipaalint report "$SCAN_PATH" \
-          --framework ${{ inputs.framework }} \
-          --sensitivity ${{ inputs.sensitivity }} \
-          --format ${{ inputs.format }} \
+          --framework "${{ inputs.framework }}" \
+          --sensitivity "${{ inputs.sensitivity }}" \
+          --format "${{ inputs.format }}" \
           --output "${{ github.workspace }}" 2>/dev/null || true
         
         # Find report file
@@ -110,8 +110,8 @@ runs:
       if: inputs.threshold != '0'
       shell: bash
       run: |
-        SCORE=${{ steps.scan.outputs.score }}
-        THRESHOLD=${{ inputs.threshold }}
+        SCORE="${{ steps.scan.outputs.score }}"
+        THRESHOLD="${{ inputs.threshold }}"
         if (( $(echo "$SCORE < $THRESHOLD" | bc -l) )); then
           echo "❌ HipaaLint score ($SCORE) is below threshold ($THRESHOLD)"
           exit 1
