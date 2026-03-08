@@ -1,4 +1,4 @@
--- ComplianceShield AI — HIPAA Rule Seed Data
+-- HipaaLint AI — HIPAA Rule Seed Data
 -- Covers all 6 scoring domains per PRD Section 6.1
 
 -- ─────────────────────────────────────────────────
