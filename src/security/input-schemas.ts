@@ -7,6 +7,7 @@ import { SensitivityLevel, ReportFormat, Severity, Category } from '../engine/ty
 
 export const ScanOptionsSchema = z.object({
   framework: z.string().default('hipaa'),
+  config: z.string().optional(),
   sensitivity: SensitivityLevel.default('balanced'),
   json: z.boolean().optional(),
   sarif: z.boolean().optional(),
@@ -35,6 +36,7 @@ export const ScanOptionsSchema = z.object({
 
 export const ScoreOptionsSchema = z.object({
   framework: z.string().default('hipaa'),
+  config: z.string().optional(),
   sensitivity: SensitivityLevel.default('balanced'),
   json: z.boolean().optional(),
   threshold: z
@@ -47,6 +49,7 @@ export const ScoreOptionsSchema = z.object({
 
 export const ReportOptionsSchema = z.object({
   framework: z.string().default('hipaa'),
+  config: z.string().optional(),
   sensitivity: SensitivityLevel.default('balanced'),
   format: ReportFormat.default('json'),
   output: z.string().optional(),
