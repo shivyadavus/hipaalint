@@ -71,7 +71,7 @@ describe('AutoFixer', () => {
 
       const result = fixer.fix(findings);
       expect(result.totalFixed).toBe(1);
-      expect(result.applied[0]!.description).toBe('Upgraded http:// to https://');
+      expect(result.applied[0]!.description).toContain('Upgraded http:// to https://');
 
       const content = readFileSync(filePath, 'utf-8');
       expect(content).toBe('const url = "https://api.example.com/data";\n');
@@ -368,6 +368,60 @@ describe('AutoFixer', () => {
       const result = fixer.fix(findings);
       expect(result.totalFixed).toBe(0);
       expect(result.skipped[0]!.reason).toBe('Fix could not be applied safely');
+    });
+  });
+
+  // ── Comment Skipping ──
+
+  describe('comment skipping', () => {
+    it('should NOT fix http:// inside a single-line comment', () => {
+      const filePath = join(FIXTURE_DIR, 'comment-line.ts');
+      writeFileSync(filePath, '// See http://example.com for docs\n');
+
+      const findings = [createFinding({ ruleId: 'HIPAA-ENC-001', filePath, lineNumber: 1 })];
+
+      const result = fixer.fix(findings);
+      expect(result.totalFixed).toBe(0);
+      expect(result.skipped[0]!.reason).toBe('Line is inside a comment');
+
+      const content = readFileSync(filePath, 'utf-8');
+      expect(content).toContain('http://example.com');
+    });
+
+    it('should NOT fix http:// inside a block comment', () => {
+      const filePath = join(FIXTURE_DIR, 'block-comment.ts');
+      writeFileSync(
+        filePath,
+        ['/*', ' * API endpoint: http://api.example.com', ' */', 'const x = 1;'].join('\n'),
+      );
+
+      const findings = [createFinding({ ruleId: 'HIPAA-ENC-001', filePath, lineNumber: 2 })];
+
+      const result = fixer.fix(findings);
+      expect(result.totalFixed).toBe(0);
+      expect(result.skipped[0]!.reason).toBe('Line is inside a comment');
+    });
+
+    it('should NOT fix http:// inside a hash comment', () => {
+      const filePath = join(FIXTURE_DIR, 'hash-comment.py');
+      writeFileSync(filePath, '# See http://example.com for docs\n');
+
+      const findings = [createFinding({ ruleId: 'HIPAA-ENC-001', filePath, lineNumber: 1 })];
+
+      const result = fixer.fix(findings);
+      expect(result.totalFixed).toBe(0);
+      expect(result.skipped[0]!.reason).toBe('Line is inside a comment');
+    });
+
+    it('should include HTTPS verification warning in fix description', () => {
+      const filePath = join(FIXTURE_DIR, 'https-warn.ts');
+      writeFileSync(filePath, 'const url = "http://api.example.com";\n');
+
+      const findings = [createFinding({ ruleId: 'HIPAA-ENC-001', filePath, lineNumber: 1 })];
+
+      const result = fixer.fix(findings);
+      expect(result.totalFixed).toBe(1);
+      expect(result.applied[0]!.description).toContain('verify target supports HTTPS');
     });
   });
 });

@@ -5,7 +5,7 @@ import { join } from 'path';
 
 const FIXTURES_DIR = join(process.cwd(), 'tests', 'fixtures', 'ast-pattern');
 
-describe('AST Pattern Evaluation', () => {
+describe('Semantic Pattern Evaluation', () => {
   beforeEach(() => {
     mkdirSync(FIXTURES_DIR, { recursive: true });
   });
@@ -284,7 +284,7 @@ describe('AST Pattern Evaluation', () => {
   });
 
   describe('File filtering', () => {
-    it('should NOT evaluate JSON files for AST patterns', () => {
+    it('should NOT evaluate JSON files for semantic patterns', () => {
       writeFileSync(
         join(FIXTURES_DIR, 'data.json'),
         JSON.stringify({ patientName: 'John', ssn: '123-45-6789' }),

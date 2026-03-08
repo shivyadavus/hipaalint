@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS rules (
   category        TEXT NOT NULL CHECK(category IN ('phi_protection','encryption','access_control','audit_logging','infrastructure','ai_governance')),
   citation        TEXT NOT NULL,
   remediation     TEXT NOT NULL,
-  pattern_type    TEXT NOT NULL CHECK(pattern_type IN ('code_pattern','ast_pattern','config_pattern','import_pattern','negative_pattern')),
+  pattern_type    TEXT NOT NULL CHECK(pattern_type IN ('code_pattern','semantic_pattern','config_pattern','import_pattern','negative_pattern')),
   pattern_config  TEXT NOT NULL, -- JSON
   is_required     INTEGER NOT NULL DEFAULT 1,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),

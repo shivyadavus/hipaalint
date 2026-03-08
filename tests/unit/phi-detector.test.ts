@@ -34,6 +34,18 @@ describe('PHIDetector', () => {
       const findings = detector.detect(code, 'test.ts');
       expect(findings.filter((f) => f.identifierType === 'email')).toHaveLength(0);
     });
+
+    it('should exclude infrastructure emails like noreply@', () => {
+      const code = 'const sender = "noreply@company.com";';
+      const findings = detector.detect(code, 'test.ts');
+      expect(findings.filter((f) => f.identifierType === 'email')).toHaveLength(0);
+    });
+
+    it('should exclude admin@ and support@ emails', () => {
+      const code = 'const contact = "admin@hospital.com"; const help = "support@hospital.com";';
+      const findings = detector.detect(code, 'test.ts');
+      expect(findings.filter((f) => f.identifierType === 'email')).toHaveLength(0);
+    });
   });
 
   describe('Phone Detection', () => {
@@ -45,8 +57,8 @@ describe('PHIDetector', () => {
   });
 
   describe('IP Address Detection', () => {
-    it('should detect IP addresses', () => {
-      const code = 'const server = "192.168.1.100";';
+    it('should detect public IP addresses', () => {
+      const code = 'const server = "8.8.8.8";';
       const findings = detector.detect(code, 'test.ts');
       expect(findings.some((f) => f.identifierType === 'ip_address')).toBe(true);
     });
@@ -55,6 +67,71 @@ describe('PHIDetector', () => {
       const code = 'const server = "127.0.0.1";';
       const findings = detector.detect(code, 'test.ts');
       expect(findings.filter((f) => f.identifierType === 'ip_address')).toHaveLength(0);
+    });
+
+    it('should exclude 10.x.x.x private range', () => {
+      const code = 'const server = "10.0.0.1";';
+      const findings = detector.detect(code, 'test.ts');
+      expect(findings.filter((f) => f.identifierType === 'ip_address')).toHaveLength(0);
+    });
+
+    it('should exclude 172.16.x.x private range', () => {
+      const code = 'const server = "172.16.0.1";';
+      const findings = detector.detect(code, 'test.ts');
+      expect(findings.filter((f) => f.identifierType === 'ip_address')).toHaveLength(0);
+    });
+
+    it('should exclude 192.168.x.x private range', () => {
+      const code = 'const server = "192.168.1.1";';
+      const findings = detector.detect(code, 'test.ts');
+      expect(findings.filter((f) => f.identifierType === 'ip_address')).toHaveLength(0);
+    });
+  });
+
+  describe('Date False Positive Reduction', () => {
+    it('should not flag dates on lines with release/version keywords', () => {
+      const code = 'const releaseDate = "01/15/2025"; // release version date';
+      const findings = detector.detect(code, 'test.ts');
+      expect(findings.filter((f) => f.identifierType === 'date_of_birth')).toHaveLength(0);
+    });
+
+    it('should not flag dates on lines with copyright keyword', () => {
+      const code = '// Copyright 01/15/2024 - All rights reserved';
+      const strictDetector = new PHIDetector({ sensitivity: 'strict' });
+      const findings = strictDetector.detect(code, 'test.ts');
+      expect(findings.filter((f) => f.identifierType === 'date_of_birth')).toHaveLength(0);
+    });
+  });
+
+  describe('Type Definition Skipping', () => {
+    it('should not flag PHI variable names inside interface definitions', () => {
+      const code = 'interface PatientRecord {\n  patientName: string;\n}';
+      const findings = detector.detect(code, 'test.ts');
+      // "interface PatientRecord {" should be skipped for variable detection
+      // but the field definition "patientName: string" on the next line is not an interface line
+      // so it may still be detected — the key test is the interface line itself
+      const interfaceLineFindings = findings.filter((f) => f.lineNumber === 1);
+      expect(
+        interfaceLineFindings.filter(
+          (f) => f.identifierType === 'name' || f.identifierType === 'medical_record_number',
+        ),
+      ).toHaveLength(0);
+    });
+
+    it('should not flag PHI variable names inside type definitions', () => {
+      const code = 'type PatientData = { patientName: string; ssn: string; }';
+      const findings = detector.detect(code, 'test.ts');
+      // The "type" line should be skipped for variable name patterns
+      const varFindings = findings.filter(
+        (f) => f.identifierType === 'name' || f.identifierType === 'ssn',
+      );
+      expect(varFindings).toHaveLength(0);
+    });
+
+    it('should still flag PHI variable names in const assignments', () => {
+      const code = 'const patientName = "John Doe";';
+      const findings = detector.detect(code, 'test.ts');
+      expect(findings.some((f) => f.identifierType === 'name')).toBe(true);
     });
   });
 
@@ -132,6 +209,47 @@ describe('PHIDetector', () => {
       // Should only count unique column positions
       const uniqueColumns = new Set(nameFindings.map((f) => f.columnNumber));
       expect(nameFindings.length).toBe(uniqueColumns.size);
+    });
+  });
+
+  describe('Base64 PHI Detection', () => {
+    it('should detect base64-encoded SSN', () => {
+      // "123-45-6789" in base64
+      const encoded = Buffer.from('123-45-6789').toString('base64');
+      const code = `const data = "${encoded}";`;
+      const findings = detector.detect(code, 'test.ts');
+      expect(findings.some((f) => f.identifierType === 'ssn')).toBe(true);
+      expect(findings.some((f) => f.matchedText.includes('[base64]'))).toBe(true);
+    });
+
+    it('should detect base64-encoded email', () => {
+      const encoded = Buffer.from('patient@hospital.com').toString('base64');
+      const code = `const payload = "${encoded}";`;
+      const findings = detector.detect(code, 'test.ts');
+      expect(findings.some((f) => f.identifierType === 'email')).toBe(true);
+    });
+
+    it('should detect base64-encoded MRN', () => {
+      const encoded = Buffer.from('MRN123456').toString('base64');
+      const code = `const record = "${encoded}";`;
+      const findings = detector.detect(code, 'test.ts');
+      expect(findings.some((f) => f.identifierType === 'medical_record_number')).toBe(true);
+    });
+
+    it('should not flag non-PHI base64 strings', () => {
+      const encoded = Buffer.from('Hello World, this is a test').toString('base64');
+      const code = `const msg = "${encoded}";`;
+      const findings = detector.detect(code, 'test.ts');
+      const base64Findings = findings.filter((f) => f.matchedText.includes('[base64]'));
+      expect(base64Findings).toHaveLength(0);
+    });
+
+    it('should not flag short base64 strings', () => {
+      // Too short to be meaningful base64
+      const code = 'const x = "SGVsbA==";';
+      const findings = detector.detect(code, 'test.ts');
+      const base64Findings = findings.filter((f) => f.matchedText.includes('[base64]'));
+      expect(base64Findings).toHaveLength(0);
     });
   });
 

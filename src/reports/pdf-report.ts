@@ -1,6 +1,6 @@
 import PDFDocument from 'pdfkit';
 import { createWriteStream } from 'fs';
-import { join } from 'path';
+import { join, relative, sep } from 'path';
 import type { ComplianceReport, ComplianceFinding } from '../engine/types.js';
 import { validateOutputDirectory } from '../security/index.js';
 
@@ -17,7 +17,7 @@ const COLORS = {
 };
 
 const BAND_COLORS: Record<string, string> = {
-  compliant: COLORS.success,
+  strong: COLORS.success,
   needs_improvement: COLORS.warning,
   at_risk: COLORS.warning,
   critical: COLORS.danger,
@@ -45,6 +45,7 @@ export async function generatePdfReport(
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({
       size: 'A4',
+      bufferPages: true,
       margins: { top: 60, bottom: 60, left: 50, right: 50 },
       info: {
         Title: `HipaaLint Report — ${report.projectName}`,
@@ -269,7 +270,7 @@ function renderFindings(doc: PDFKit.PDFDocument, report: ComplianceReport) {
         doc.addPage();
       }
 
-      const relPath = f.filePath.replace(report.projectPath + '/', '');
+      const relPath = relative(report.projectPath, f.filePath).split(sep).join('/');
       doc.fontSize(11).fillColor(COLORS.primary).text(`${f.ruleId}: ${f.title}`);
       doc.fontSize(9).fillColor(COLORS.muted).text(`📍 ${relPath}:${f.lineNumber}`);
       doc.fontSize(9).fillColor(COLORS.text).text(`📋 ${f.citation}`);

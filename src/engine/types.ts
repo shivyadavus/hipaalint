@@ -19,14 +19,14 @@ export type Category = z.infer<typeof Category>;
 
 export const PatternType = z.enum([
   'code_pattern',
-  'ast_pattern',
+  'semantic_pattern',
   'config_pattern',
   'import_pattern',
   'negative_pattern',
 ]);
 export type PatternType = z.infer<typeof PatternType>;
 
-export const ScoreBand = z.enum(['compliant', 'needs_improvement', 'at_risk', 'critical']);
+export const ScoreBand = z.enum(['strong', 'needs_improvement', 'at_risk', 'critical']);
 export type ScoreBand = z.infer<typeof ScoreBand>;
 
 export const ReportFormat = z.enum(['json', 'pdf', 'sarif']);
@@ -237,6 +237,14 @@ export const ScanResultSchema = z.object({
   rulesEvaluated: z.number(),
   scanDurationMs: z.number(),
   timestamp: z.string().datetime(),
+  timedOut: z.boolean().optional(),
+  skipReasons: z
+    .object({
+      binary: z.number(),
+      tooLarge: z.number(),
+      readError: z.number(),
+    })
+    .optional(),
 });
 export type ScanResult = z.infer<typeof ScanResultSchema>;
 
@@ -268,7 +276,7 @@ export const DOMAIN_WEIGHTS: Record<keyof ComplianceScore['domainScores'], numbe
 };
 
 export const SCORE_BAND_THRESHOLDS = {
-  compliant: 90,
+  strong: 90,
   needs_improvement: 70,
   at_risk: 40,
   critical: 0,
@@ -276,6 +284,8 @@ export const SCORE_BAND_THRESHOLDS = {
 
 export const SCORE_CLAMP_RULES = {
   criticalPHIFinding: 69,
+  multipleCriticalPHI: 59,
+  manyCriticalPHI: 49,
   noEncryptionAtRest: 59,
   noMFAEnforcement: 79,
 } as const;

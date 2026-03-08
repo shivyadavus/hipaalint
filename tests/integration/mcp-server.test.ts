@@ -92,7 +92,7 @@ describe('MCP Tool: compliance_scan pipeline', () => {
       const nonCompliantResult = evaluator.evaluate([NON_COMPLIANT_DIR], 'hipaa');
 
       expect(compliantResult.filesScanned).toBeGreaterThanOrEqual(1);
-      expect(compliantResult.rulesEvaluated).toBe(29);
+      expect(compliantResult.rulesEvaluated).toBe(33);
       expect(compliantResult.scanDurationMs).toBeGreaterThanOrEqual(0);
       expect(compliantResult.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
       expect(compliantResult.findings.length).toBeLessThan(nonCompliantResult.findings.length);
@@ -210,7 +210,7 @@ describe('MCP Tool: compliance_score pipeline', () => {
       const calculator = new ScoreCalculator();
       const score = calculator.calculateScore(result, 'hipaa', 'balanced');
       expect(score.metadata.framework).toBe('hipaa');
-      expect(score.metadata.rulesEvaluated).toBe(29);
+      expect(score.metadata.rulesEvaluated).toBe(33);
       expect(score.metadata.filesScanned).toBeGreaterThanOrEqual(1);
     } finally {
       evaluator.close();
@@ -310,12 +310,12 @@ describe('MCP Tool: phi_detect pipeline', () => {
 // ──────────────────────────────────────────────────
 
 describe('MCP Tool: compliance_rules pipeline', () => {
-  it('should return all 29 rules', () => {
+  it('should return all 33 rules', () => {
     const evaluator = new RuleEvaluator({ sensitivity: 'balanced' });
     try {
       const db = evaluator.getRuleDatabase();
       const rules = db.getAllRules();
-      expect(rules.length).toBe(29);
+      expect(rules.length).toBe(33);
       for (const r of rules) {
         expect(r.ruleId).toBeDefined();
         expect(r.title).toBeDefined();
@@ -333,7 +333,7 @@ describe('MCP Tool: compliance_rules pipeline', () => {
       const db = evaluator.getRuleDatabase();
       const results = db.searchRules('encryption');
       expect(results.length).toBeGreaterThan(0);
-      expect(results.length).toBeLessThan(29);
+      expect(results.length).toBeLessThan(33);
     } finally {
       evaluator.close();
     }

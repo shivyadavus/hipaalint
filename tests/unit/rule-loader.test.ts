@@ -40,12 +40,12 @@ describe('RuleDatabase', () => {
     });
 
     it('should seed HIPAA rules on first initialization', () => {
-      expect(db.getRuleCount()).toBe(29);
+      expect(db.getRuleCount()).toBe(33);
     });
 
     it('should not re-seed if rules already exist', () => {
       db.initialize(); // Call again
-      expect(db.getRuleCount()).toBe(29);
+      expect(db.getRuleCount()).toBe(33);
     });
   });
 
@@ -71,7 +71,7 @@ describe('RuleDatabase', () => {
   describe('rule queries', () => {
     it('should get rules by framework', () => {
       const rules = db.getRulesByFramework('hipaa');
-      expect(rules.length).toBe(29);
+      expect(rules.length).toBe(33);
     });
 
     it('should get rules by severity', () => {
@@ -113,22 +113,22 @@ describe('RuleDatabase', () => {
     });
 
     it('should return correct rule count', () => {
-      expect(db.getRuleCount()).toBe(29);
+      expect(db.getRuleCount()).toBe(33);
     });
 
     it('should return all rules ordered by severity and category', () => {
       const rules = db.getAllRules();
-      expect(rules.length).toBe(29);
+      expect(rules.length).toBe(33);
     });
   });
 
   describe('scan history', () => {
     it('should save and retrieve scan history', () => {
-      db.saveScanResult('/test/project', 'hipaa', 85, 'compliant', 50, 3, { test: true });
+      db.saveScanResult('/test/project', 'hipaa', 85, 'strong', 50, 3, { test: true });
       const history = db.getScanHistory('/test/project');
       expect(history.length).toBe(1);
       expect(history[0]!['score']).toBe(85);
-      expect(history[0]!['band']).toBe('compliant');
+      expect(history[0]!['band']).toBe('strong');
     });
   });
 

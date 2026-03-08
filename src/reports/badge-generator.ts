@@ -1,14 +1,14 @@
 import type { ComplianceScore, ScoreBand } from '../engine/types.js';
 
 const BAND_COLORS: Record<ScoreBand, string> = {
-  compliant: '00c853', // Green
+  strong: '00c853', // Green
   needs_improvement: 'ff9800', // Amber
   at_risk: 'ff5722', // Deep Orange
   critical: 'd32f2f', // Red
 };
 
 const BAND_LABELS: Record<ScoreBand, string> = {
-  compliant: 'compliant',
+  strong: 'strong',
   needs_improvement: 'needs improvement',
   at_risk: 'at risk',
   critical: 'critical',

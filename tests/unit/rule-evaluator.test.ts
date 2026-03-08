@@ -27,7 +27,7 @@ describe('RuleEvaluator', () => {
         expect(result).toHaveProperty('rulesEvaluated');
         expect(result).toHaveProperty('scanDurationMs');
         expect(result).toHaveProperty('timestamp');
-        expect(result.rulesEvaluated).toBe(29);
+        expect(result.rulesEvaluated).toBe(33);
       } finally {
         evaluator.close();
       }
@@ -203,6 +203,46 @@ describe('RuleEvaluator', () => {
       }
     });
 
+    it('should NOT flag AC-004 when Auth0 is imported', () => {
+      writeFileSync(
+        join(FIXTURES_DIR, 'auth.ts'),
+        [
+          'import { Auth0Provider } from "@auth0/auth0-react";',
+          'import express from "express";',
+          'const app = express();',
+        ].join('\n'),
+      );
+
+      const evaluator = new RuleEvaluator({ sensitivity: 'balanced' });
+      try {
+        const result = evaluator.evaluate([FIXTURES_DIR]);
+        const mfaFindings = result.findings.filter((f) => f.ruleId === 'HIPAA-AC-004');
+        expect(mfaFindings.length).toBe(0);
+      } finally {
+        evaluator.close();
+      }
+    });
+
+    it('should NOT flag AL-001 when @sentry is imported', () => {
+      writeFileSync(
+        join(FIXTURES_DIR, 'logging.ts'),
+        [
+          'import * as Sentry from "@sentry/node";',
+          'import express from "express";',
+          'Sentry.init({ dsn: process.env.SENTRY_DSN });',
+        ].join('\n'),
+      );
+
+      const evaluator = new RuleEvaluator({ sensitivity: 'balanced' });
+      try {
+        const result = evaluator.evaluate([FIXTURES_DIR]);
+        const auditFindings = result.findings.filter((f) => f.ruleId === 'HIPAA-AL-001');
+        expect(auditFindings.length).toBe(0);
+      } finally {
+        evaluator.close();
+      }
+    });
+
     it('should skip non-code files for import patterns', () => {
       writeFileSync(join(FIXTURES_DIR, 'config.yaml'), 'server:\n  port: 3000\n');
 
@@ -219,13 +259,155 @@ describe('RuleEvaluator', () => {
     });
   });
 
+  describe('inline suppression comments', () => {
+    it('should suppress specific rule with disable-next-line', () => {
+      writeFileSync(
+        join(FIXTURES_DIR, 'suppressed.ts'),
+        [
+          '// hipaalint-disable-next-line HIPAA-ENC-001',
+          'const url = "http://api.example.com/data";',
+        ].join('\n'),
+      );
+
+      const evaluator = new RuleEvaluator({ sensitivity: 'balanced' });
+      try {
+        const result = evaluator.evaluate([FIXTURES_DIR]);
+        const enc001 = result.findings.filter((f) => f.ruleId === 'HIPAA-ENC-001');
+        expect(enc001.length).toBe(0);
+      } finally {
+        evaluator.close();
+      }
+    });
+
+    it('should suppress all rules with disable-next-line (no rule ID)', () => {
+      writeFileSync(
+        join(FIXTURES_DIR, 'suppressed-all.ts'),
+        [
+          '// hipaalint-disable-next-line',
+          'const secretKey = "my-secret"; const url = "http://api.example.com";',
+        ].join('\n'),
+      );
+
+      const evaluator = new RuleEvaluator({ sensitivity: 'balanced' });
+      try {
+        const result = evaluator.evaluate([FIXTURES_DIR]);
+        // Line 2 should have no findings at all
+        const line2Findings = result.findings.filter(
+          (f) => f.filePath.includes('suppressed-all') && f.lineNumber === 2,
+        );
+        expect(line2Findings.length).toBe(0);
+      } finally {
+        evaluator.close();
+      }
+    });
+
+    it('should suppress current line with disable-line', () => {
+      writeFileSync(
+        join(FIXTURES_DIR, 'inline.ts'),
+        'const url = "http://api.example.com/data"; // hipaalint-disable-line HIPAA-ENC-001\n',
+      );
+
+      const evaluator = new RuleEvaluator({ sensitivity: 'balanced' });
+      try {
+        const result = evaluator.evaluate([FIXTURES_DIR]);
+        const enc001 = result.findings.filter(
+          (f) => f.ruleId === 'HIPAA-ENC-001' && f.filePath.includes('inline'),
+        );
+        expect(enc001.length).toBe(0);
+      } finally {
+        evaluator.close();
+      }
+    });
+
+    it('should suppress block with disable/enable', () => {
+      writeFileSync(
+        join(FIXTURES_DIR, 'block.ts'),
+        [
+          '// hipaalint-disable HIPAA-ENC-001',
+          'const url1 = "http://api.example.com/a";',
+          'const url2 = "http://api.example.com/b";',
+          '// hipaalint-enable HIPAA-ENC-001',
+          'const url3 = "http://api.example.com/c";',
+        ].join('\n'),
+      );
+
+      const evaluator = new RuleEvaluator({ sensitivity: 'balanced' });
+      try {
+        const result = evaluator.evaluate([FIXTURES_DIR]);
+        const enc001 = result.findings.filter(
+          (f) => f.ruleId === 'HIPAA-ENC-001' && f.filePath.includes('block'),
+        );
+        // Lines 2 and 3 suppressed, line 5 should still fire
+        expect(enc001.length).toBe(1);
+        expect(enc001[0]!.lineNumber).toBe(5);
+      } finally {
+        evaluator.close();
+      }
+    });
+
+    it('should still produce findings on non-suppressed lines', () => {
+      writeFileSync(
+        join(FIXTURES_DIR, 'partial.ts'),
+        [
+          '// hipaalint-disable-next-line HIPAA-ENC-001',
+          'const url1 = "http://api.example.com/a";',
+          'const url2 = "http://api.example.com/b";',
+        ].join('\n'),
+      );
+
+      const evaluator = new RuleEvaluator({ sensitivity: 'balanced' });
+      try {
+        const result = evaluator.evaluate([FIXTURES_DIR]);
+        const enc001 = result.findings.filter(
+          (f) => f.ruleId === 'HIPAA-ENC-001' && f.filePath.includes('partial'),
+        );
+        // Line 2 suppressed, line 3 should fire
+        expect(enc001.length).toBe(1);
+        expect(enc001[0]!.lineNumber).toBe(3);
+      } finally {
+        evaluator.close();
+      }
+    });
+  });
+
+  describe('skip reasons tracking', () => {
+    it('should track skip reasons for oversized files', () => {
+      // Create a file > 1MB
+      const largeContent = 'const x = 1;\n'.repeat(100_000);
+      writeFileSync(join(FIXTURES_DIR, 'large.ts'), largeContent);
+
+      const evaluator = new RuleEvaluator({ sensitivity: 'balanced' });
+      try {
+        const result = evaluator.evaluate([FIXTURES_DIR]);
+        expect(result.filesSkipped).toBeGreaterThanOrEqual(1);
+        expect(result.skipReasons).toBeDefined();
+        expect(result.skipReasons!.tooLarge).toBeGreaterThanOrEqual(1);
+      } finally {
+        evaluator.close();
+      }
+    });
+
+    it('should not include skipReasons when no files are skipped', () => {
+      writeFileSync(join(FIXTURES_DIR, 'small.ts'), 'const x = 1;\n');
+
+      const evaluator = new RuleEvaluator({ sensitivity: 'balanced' });
+      try {
+        const result = evaluator.evaluate([FIXTURES_DIR]);
+        expect(result.filesSkipped).toBe(0);
+        expect(result.skipReasons).toBeUndefined();
+      } finally {
+        evaluator.close();
+      }
+    });
+  });
+
   describe('getRuleDatabase()', () => {
     it('should return the rule database instance', () => {
       const evaluator = new RuleEvaluator({ sensitivity: 'balanced' });
       try {
         const db = evaluator.getRuleDatabase();
         expect(db).toBeDefined();
-        expect(db.getRuleCount()).toBe(29);
+        expect(db.getRuleCount()).toBe(33);
       } finally {
         evaluator.close();
       }
