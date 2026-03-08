@@ -20,10 +20,7 @@ export {
   generateBadgeMarkdown,
   generateBadgeSvg,
 } from './reports/badge-generator.js';
-export {
-  buildReport,
-  generateRecommendations,
-} from './reports/report-builder.js';
+export { buildReport, generateRecommendations } from './reports/report-builder.js';
 export { VERSION, RULES_VERSION } from './version.js';
 
 // Security

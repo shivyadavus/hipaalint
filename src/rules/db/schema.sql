@@ -1,4 +1,4 @@
--- ComplianceShield AI — Rule Database Schema
+-- HipaaLint AI — Rule Database Schema
 -- SQLite schema for compliance rules, frameworks, and scan history
 
 PRAGMA journal_mode = WAL;

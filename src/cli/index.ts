@@ -13,6 +13,7 @@ import { loadConfig, mergeWithFlags } from '../engine/config-loader.js';
 import { VERSION } from '../version.js';
 import { resolve, relative, sep } from 'path';
 import { readFileSync } from 'fs';
+import { countFindings } from '../engine/finding-counter.js';
 import {
   SecurityError,
   validateScanPath,
@@ -88,6 +89,7 @@ program
   .description('Scan a project for compliance violations')
   .argument('[path]', 'Path to scan', '.')
   .option('-f, --framework <framework>', 'Compliance framework', 'hipaa')
+  .option('-c, --config <path>', 'Path to .hipaalintrc config file')
   .option('-s, --sensitivity <level>', 'Sensitivity: strict, balanced, relaxed', 'balanced')
   .option('--json', 'Output as JSON')
   .option('--sarif', 'Output as SARIF')
@@ -111,7 +113,7 @@ program
     const sarifOutput = validated.sarif;
 
     // Load .hipaalintrc and merge with CLI flags
-    const projectConfig = loadConfig(targetPath);
+    const projectConfig = loadConfig(targetPath, validated.config);
     const merged = mergeWithFlags(projectConfig, {
       sensitivity: validated.sensitivity !== 'balanced' ? validated.sensitivity : undefined,
       framework: validated.framework !== 'hipaa' ? validated.framework : undefined,
@@ -128,7 +130,9 @@ program
       console.log(`   Sensitivity: ${merged.sensitivity}\n`);
     }
 
-    const evaluator = new RuleEvaluator({ sensitivity: merged.sensitivity as 'strict' | 'balanced' | 'relaxed' });
+    const evaluator = new RuleEvaluator({
+      sensitivity: merged.sensitivity as 'strict' | 'balanced' | 'relaxed',
+    });
     registerCleanup(() => evaluator.close());
     try {
       const result = evaluator.evaluate([targetPath], merged.framework, {
@@ -143,11 +147,8 @@ program
         return;
       }
 
-      // Terminal output
-      const criticals = result.findings.filter((f) => f.severity === 'critical');
-      const highs = result.findings.filter((f) => f.severity === 'high');
-      const mediums = result.findings.filter((f) => f.severity === 'medium');
-      const lows = result.findings.filter((f) => f.severity === 'low');
+      // Terminal output using single-pass counting
+      const counts = countFindings(result.findings);
 
       console.log(`📊 Results:`);
       console.log(`   Files scanned: ${result.filesScanned}`);
@@ -161,10 +162,10 @@ program
       }
       console.log(`   Rules evaluated: ${result.rulesEvaluated}`);
       console.log(`   Duration: ${result.scanDurationMs}ms\n`);
-      console.log(`   🔴 Critical: ${criticals.length}`);
-      console.log(`   🟠 High:     ${highs.length}`);
-      console.log(`   🟡 Medium:   ${mediums.length}`);
-      console.log(`   🔵 Low:      ${lows.length}\n`);
+      console.log(`   🔴 Critical: ${counts.bySeverity.critical}`);
+      console.log(`   🟠 High:     ${counts.bySeverity.high}`);
+      console.log(`   🟡 Medium:   ${counts.bySeverity.medium}`);
+      console.log(`   🔵 Low:      ${counts.bySeverity.low}\n`);
 
       if (result.findings.length === 0) {
         console.log(`✅ No compliance violations found!\n`);
@@ -231,7 +232,7 @@ program
       );
 
       // Set exit code if critical findings exist
-      if (criticals.length > 0) {
+      if (counts.bySeverity.critical > 0) {
         process.exit(1);
       }
     } finally {
@@ -248,6 +249,7 @@ program
   .description('Calculate the HipaaLint Score')
   .argument('[path]', 'Path to evaluate', '.')
   .option('-f, --framework <framework>', 'Compliance framework', 'hipaa')
+  .option('-c, --config <path>', 'Path to .hipaalintrc config file')
   .option('-s, --sensitivity <level>', 'Sensitivity level', 'balanced')
   .option('--json', 'Output as JSON')
   .option('--threshold <score>', 'Fail if score is below threshold', '0')
@@ -263,12 +265,25 @@ program
 
     const sensitivity = validated.sensitivity;
 
-    const evaluator = new RuleEvaluator({ sensitivity });
+    // Load .hipaalintrc and merge with CLI flags
+    const scoreConfig = loadConfig(targetPath, validated.config);
+    const scoreMerged = mergeWithFlags(scoreConfig, {
+      sensitivity: sensitivity !== 'balanced' ? sensitivity : undefined,
+      framework: validated.framework !== 'hipaa' ? validated.framework : undefined,
+    });
+
+    const evaluator = new RuleEvaluator({
+      sensitivity: scoreMerged.sensitivity as 'strict' | 'balanced' | 'relaxed',
+    });
     registerCleanup(() => evaluator.close());
     try {
-      const result = evaluator.evaluate([targetPath], validated.framework);
+      const result = evaluator.evaluate([targetPath], scoreMerged.framework);
       const calculator = new ScoreCalculator();
-      const score = calculator.calculateScore(result, validated.framework, sensitivity);
+      const score = calculator.calculateScore(
+        result,
+        scoreMerged.framework,
+        scoreMerged.sensitivity as 'strict' | 'balanced' | 'relaxed',
+      );
 
       if (validated.json) {
         console.log(JSON.stringify(score, null, 2));
@@ -322,6 +337,7 @@ program
   .description('Generate a compliance audit report')
   .argument('[path]', 'Path to analyze', '.')
   .option('-f, --framework <framework>', 'Compliance framework', 'hipaa')
+  .option('-c, --config <path>', 'Path to .hipaalintrc config file')
   .option('-s, --sensitivity <level>', 'Sensitivity level', 'balanced')
   .option('--format <format>', 'Report format: json, pdf, sarif', 'json')
   .option('-o, --output <dir>', 'Output directory')
@@ -341,16 +357,35 @@ program
 
     const sensitivity = validated.sensitivity;
 
+    // Load .hipaalintrc and merge with CLI flags
+    const reportConfig = loadConfig(targetPath, validated.config);
+    const reportMerged = mergeWithFlags(reportConfig, {
+      sensitivity: sensitivity !== 'balanced' ? sensitivity : undefined,
+      framework: validated.framework !== 'hipaa' ? validated.framework : undefined,
+    });
+
     console.log(`\n🛡️  Generating ${validated.format.toUpperCase()} report...\n`);
 
-    const evaluator = new RuleEvaluator({ sensitivity });
+    const evaluator = new RuleEvaluator({
+      sensitivity: reportMerged.sensitivity as 'strict' | 'balanced' | 'relaxed',
+    });
     registerCleanup(() => evaluator.close());
     try {
-      const result = evaluator.evaluate([targetPath], validated.framework);
+      const result = evaluator.evaluate([targetPath], reportMerged.framework);
       const calculator = new ScoreCalculator();
-      const score = calculator.calculateScore(result, validated.framework, sensitivity);
+      const score = calculator.calculateScore(
+        result,
+        reportMerged.framework,
+        reportMerged.sensitivity as 'strict' | 'balanced' | 'relaxed',
+      );
 
-      const report = buildReport(result, score, targetPath, validated.framework, sensitivity);
+      const report = buildReport(
+        result,
+        score,
+        targetPath,
+        reportMerged.framework,
+        reportMerged.sensitivity as 'strict' | 'balanced' | 'relaxed',
+      );
 
       let reportPath: string;
       switch (validated.format) {
