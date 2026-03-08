@@ -71,6 +71,24 @@ export class RuleDatabase {
     this.db.exec(seed);
   }
 
+  seedIaC(): void {
+    const seedPath = join(__dirname, 'db', 'seed-iac.sql');
+    const seed = readFileSync(seedPath, 'utf-8');
+    this.db.exec(seed);
+  }
+
+  seedHITRUST(): void {
+    const seedPath = join(__dirname, 'db', 'seed-hitrust.sql');
+    const seed = readFileSync(seedPath, 'utf-8');
+    this.db.exec(seed);
+  }
+
+  seedSOC2Health(): void {
+    const seedPath = join(__dirname, 'db', 'seed-soc2-health.sql');
+    const seed = readFileSync(seedPath, 'utf-8');
+    this.db.exec(seed);
+  }
+
   initialize(): void {
     this.initSchema();
     const row = this.db.prepare('SELECT COUNT(*) as count FROM frameworks').get() as {
@@ -78,6 +96,9 @@ export class RuleDatabase {
     };
     if (row.count === 0) {
       this.seedHIPAA();
+      this.seedIaC();
+      this.seedHITRUST();
+      this.seedSOC2Health();
     }
   }
 

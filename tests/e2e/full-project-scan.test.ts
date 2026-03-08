@@ -213,7 +213,7 @@ describe('E2E: Full project scan', () => {
 
       // Should scan all .ts and .env files
       expect(result.filesScanned).toBeGreaterThanOrEqual(8);
-      expect(result.rulesEvaluated).toBe(33);
+      expect(result.rulesEvaluated).toBe(43);
 
       // Should find violations across multiple categories
       const categories = new Set(result.findings.map((f) => f.category));

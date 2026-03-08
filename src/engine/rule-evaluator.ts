@@ -1,6 +1,7 @@
 import type { ComplianceFinding, Rule, ScanResult, SensitivityLevel } from './types.js';
 import { PHIDetector } from './phi-detector.js';
 import { RegexCache } from './regex-cache.js';
+import { analyzeTaint } from './taint-tracker.js';
 import { RuleDatabase } from '../rules/rule-loader.js';
 import { validateScanPath } from '../security/index.js';
 import { readFileSync, readdirSync, lstatSync, existsSync } from 'fs';
@@ -137,12 +138,14 @@ const SUPPORTED_EXTENSIONS = new Set([
   '.yaml',
   '.yml',
   '.toml',
+  '.tf',
+  '.hcl',
 ]);
 
 // Dotfiles where extname() returns '' or wrong value — match by full filename or prefix
 function isSupportedFilename(name: string): boolean {
   const lower = name.toLowerCase();
-  return lower === '.env' || lower.startsWith('.env.');
+  return lower === '.env' || lower.startsWith('.env.') || lower === 'dockerfile';
 }
 
 // ──────────────────────────────────────────────────
@@ -687,7 +690,7 @@ export class RuleEvaluator {
 
   private evaluateSemanticPattern(
     filePath: string,
-    _content: string,
+    content: string,
     lines: string[],
     rule: Rule,
     config: Record<string, unknown>,
@@ -696,7 +699,10 @@ export class RuleEvaluator {
     if (!RuleEvaluator.CODE_EXTENSIONS.has(ext)) return [];
 
     if (config.functionNames && config.checkArguments) {
-      return this.detectPHIInLogStatements(filePath, lines, rule, config);
+      const regexFindings = this.detectPHIInLogStatements(filePath, lines, rule, config);
+      // Also run taint analysis for log-sink rules
+      const taintFindings = analyzeTaint(filePath, content, rule);
+      return [...regexFindings, ...taintFindings];
     }
     if (config.checkForPHIFields && config.apiContext) {
       return this.detectPHIInApiResponse(filePath, lines, rule);

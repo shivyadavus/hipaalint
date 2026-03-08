@@ -27,7 +27,7 @@ describe('RuleEvaluator', () => {
         expect(result).toHaveProperty('rulesEvaluated');
         expect(result).toHaveProperty('scanDurationMs');
         expect(result).toHaveProperty('timestamp');
-        expect(result.rulesEvaluated).toBe(33);
+        expect(result.rulesEvaluated).toBe(43);
       } finally {
         evaluator.close();
       }
@@ -407,7 +407,7 @@ describe('RuleEvaluator', () => {
       try {
         const db = evaluator.getRuleDatabase();
         expect(db).toBeDefined();
-        expect(db.getRuleCount()).toBe(33);
+        expect(db.getRuleCount()).toBe(59);
       } finally {
         evaluator.close();
       }

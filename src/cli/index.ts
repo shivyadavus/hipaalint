@@ -9,6 +9,7 @@ import { generateJsonReport, generateSarifReport } from '../reports/json-report.
 import { generatePdfReport } from '../reports/pdf-report.js';
 import { PHIDetector } from '../engine/phi-detector.js';
 import { buildReport } from '../reports/report-builder.js';
+import { loadConfig, mergeWithFlags } from '../engine/config-loader.js';
 import { VERSION } from '../version.js';
 import { resolve, relative, sep } from 'path';
 import { readFileSync } from 'fs';
@@ -106,25 +107,35 @@ program
       handleValidationError(err);
     }
 
-    const sensitivity = validated.sensitivity;
     const jsonOutput = validated.json;
     const sarifOutput = validated.sarif;
+
+    // Load .hipaalintrc and merge with CLI flags
+    const projectConfig = loadConfig(targetPath);
+    const merged = mergeWithFlags(projectConfig, {
+      sensitivity: validated.sensitivity !== 'balanced' ? validated.sensitivity : undefined,
+      framework: validated.framework !== 'hipaa' ? validated.framework : undefined,
+      exclude: validated.exclude?.length ? validated.exclude : undefined,
+      maxFiles: validated.maxFiles !== 10000 ? validated.maxFiles : undefined,
+      maxDepth: validated.maxDepth !== 50 ? validated.maxDepth : undefined,
+      timeout: validated.timeout !== 60000 ? validated.timeout : undefined,
+    });
 
     if (!jsonOutput && !sarifOutput) {
       console.log(`\n🛡️  HipaaLint AI — Scanning...\n`);
       console.log(`   Path: ${targetPath}`);
-      console.log(`   Framework: ${validated.framework}`);
-      console.log(`   Sensitivity: ${sensitivity}\n`);
+      console.log(`   Framework: ${merged.framework}`);
+      console.log(`   Sensitivity: ${merged.sensitivity}\n`);
     }
 
-    const evaluator = new RuleEvaluator({ sensitivity });
+    const evaluator = new RuleEvaluator({ sensitivity: merged.sensitivity as 'strict' | 'balanced' | 'relaxed' });
     registerCleanup(() => evaluator.close());
     try {
-      const result = evaluator.evaluate([targetPath], validated.framework, {
-        ignore: validated.exclude,
-        maxFiles: validated.maxFiles,
-        maxDepth: validated.maxDepth,
-        timeoutMs: validated.timeout,
+      const result = evaluator.evaluate([targetPath], merged.framework, {
+        ignore: merged.ignore,
+        maxFiles: merged.maxFiles,
+        maxDepth: merged.maxDepth,
+        timeoutMs: merged.timeout,
       });
 
       if (jsonOutput) {
