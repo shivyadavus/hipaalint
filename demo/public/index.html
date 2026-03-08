@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HipaaLint AI — Interactive Playground</title>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <header class="navbar glass">
+            <div class="brand">
+                <div class="logo-mark"><i data-lucide="shield-check"></i></div>
+                <h1>HipaaLint <span class="badge">Playground</span></h1>
+            </div>
+            <div class="actions">
+                <button id="analyze-btn" class="btn btn-primary">
+                    <i data-lucide="zap"></i> Analyze Code
+                </button>
+            </div>
+        </header>
+
+        <main class="workspace">
+            <!-- Left Pane: Editor -->
+            <section class="pane editor-pane">
+                <div class="pane-header">
+                    <h2><i data-lucide="code"></i> index.ts</h2>
+                </div>
+                <!-- Monaco Editor Container -->
+                <div id="editor-container" class="editor-wrapper"></div>
+            </section>
+
+            <!-- Right Pane: Analysis -->
+            <section class="pane analysis-pane">
+                
+                <!-- Score Card (Hidden until analyzed) -->
+                <div id="score-card" class="glass card result-view hidden">
+                    <div class="score-header">
+                        <h2>Compliance Analysis</h2>
+                        <span id="score-band" class="tag"></span>
+                    </div>
+
+                    <div class="score-circle-container">
+                        <svg class="progress-ring" width="120" height="120">
+                            <circle class="progress-ring__circle bg" stroke="var(--bg-lighter)" stroke-width="8" fill="transparent" r="50" cx="60" cy="60"/>
+                            <circle id="score-ring" class="progress-ring__circle fg" stroke="var(--success)" stroke-width="8" fill="transparent" r="50" cx="60" cy="60" />
+                        </svg>
+                        <div class="score-value">
+                            <span id="score-number">0</span><span class="muted">/100</span>
+                        </div>
+                    </div>
+
+                    <!-- Domain Progress Bars -->
+                    <div id="domains-container" class="domains-list">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+
+                <!-- Findings List -->
+                <div id="findings-card" class="glass card result-view hidden">
+                    <div class="findings-header">
+                        <h3><i data-lucide="alert-triangle"></i> Vulnerabilities</h3>
+                        <span id="findings-count" class="badge danger">0</span>
+                    </div>
+                    <div id="findings-list" class="findings-list empty-state">
+                        <i data-lucide="shield"></i>
+                        <p>No vulnerabilities detected!</p>
+                    </div>
+                </div>
+
+                <!-- Empty State (Shown initially) -->
+                <div id="empty-state" class="empty-state fill">
+                    <div class="empty-icon-wrapper">
+                        <i data-lucide="cpu" class="pulse"></i>
+                    </div>
+                    <h2>AI-Powered Scanning</h2>
+                    <p>Paste a code snippet and click <strong>Analyze</strong> to detect PHI leaks and compliance violations in real-time.</p>
+                </div>
+                
+                <!-- Loading State -->
+                <div id="loading-state" class="empty-state fill hidden">
+                    <div class="spinner"></div>
+                    <p>Analyzing syntax trees...</p>
+                </div>
+
+            </section>
+        </main>
+    </div>
+
+    <!-- RequireJS & Monaco Editor -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

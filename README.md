@@ -48,6 +48,16 @@ hipaalint report . --format pdf
 
 ## See It In Action
 
+### HipaaLint Web API & Playground
+Integrate our powerful detection engine into your own web interfaces, or use our standalone interactive playground to audit compliance in real-time.
+
+<video src="./demo/demo.mp4" width="100%" controls autoplay loop muted></video>
+
+### HipaaLint Terminal CLI
+Scan your entire codebase, calculate your compliance score, and auto-fix violations directly from your terminal workflow.
+
+<img src="./demo.gif" width="100%" />
+
 ### 1. Scan — Find violations instantly
 
 ```bash
