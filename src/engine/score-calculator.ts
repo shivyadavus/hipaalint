@@ -8,6 +8,7 @@ import type {
   SensitivityLevel,
 } from './types.js';
 import { DOMAIN_WEIGHTS, SCORE_BAND_THRESHOLDS, SCORE_CLAMP_RULES } from './types.js';
+import { VERSION } from '../version.js';
 
 // ──────────────────────────────────────────────────
 // Category → Domain mapping
@@ -73,7 +74,7 @@ export class ScoreCalculator {
         rulesEvaluated: scanResult.rulesEvaluated,
         framework,
         sensitivity,
-        engineVersion: '0.1.0',
+        engineVersion: VERSION,
       },
     };
   }

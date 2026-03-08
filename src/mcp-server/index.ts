@@ -8,10 +8,11 @@ import { RuleEvaluator } from '../engine/rule-evaluator.js';
 import { ScoreCalculator } from '../engine/score-calculator.js';
 import { generateJsonReport } from '../reports/json-report.js';
 import { generatePdfReport } from '../reports/pdf-report.js';
-import type { ComplianceFinding, ComplianceReport } from '../engine/types.js';
+import { buildReport } from '../reports/report-builder.js';
+import { VERSION } from '../version.js';
+import type { ComplianceFinding } from '../engine/types.js';
 import { countFindings } from '../engine/finding-counter.js';
-import { randomUUID } from 'crypto';
-import { basename, relative, sep } from 'path';
+import { relative, sep } from 'path';
 import {
   SecurityError,
   validateScanPath,
@@ -30,7 +31,7 @@ import {
 const server = new Server(
   {
     name: 'hipaalint-ai',
-    version: '0.1.0',
+    version: VERSION,
   },
   {
     capabilities: {
@@ -373,28 +374,7 @@ async function handleReport(args: Record<string, unknown>) {
     const calculator = new ScoreCalculator();
     const score = calculator.calculateScore(result, validated.framework, validated.sensitivity);
 
-    const reportCounts = countFindings(result.findings);
-    const report: ComplianceReport = {
-      id: randomUUID(),
-      version: '0.1.0',
-      projectName: basename(path),
-      projectPath: path,
-      generatedAt: new Date().toISOString(),
-      score,
-      findings: result.findings,
-      summary: {
-        totalFindings: reportCounts.total,
-        bySeverity: reportCounts.bySeverity,
-        byCategory: reportCounts.byCategory,
-      },
-      recommendations: generateRecommendations(result.findings),
-      metadata: {
-        hipaalintVersion: '0.1.0',
-        rulesVersion: '2025.1',
-        frameworksEvaluated: [validated.framework],
-        sensitivity: validated.sensitivity,
-      },
-    };
+    const report = buildReport(result, score, path, validated.framework, validated.sensitivity);
 
     let reportPath: string;
 
@@ -520,36 +500,7 @@ async function handleRules(args: Record<string, unknown>) {
   }
 }
 
-function generateRecommendations(findings: ComplianceFinding[]) {
-  const recs: ComplianceReport['recommendations'] = [];
-
-  // Group by rule — highest severity first
-  const byRule = new Map<string, ComplianceFinding[]>();
-  for (const f of findings) {
-    const existing = byRule.get(f.ruleId) || [];
-    existing.push(f);
-    byRule.set(f.ruleId, existing);
-  }
-
-  const severityOrder = { critical: 1, high: 2, medium: 3, low: 4, info: 5 };
-  const sorted = [...byRule.entries()].sort((a, b) => {
-    const aMax = Math.min(...a[1].map((f) => severityOrder[f.severity]));
-    const bMax = Math.min(...b[1].map((f) => severityOrder[f.severity]));
-    return aMax - bMax;
-  });
-
-  let priority = 1;
-  for (const [ruleId, ruleFindings] of sorted) {
-    recs.push({
-      priority,
-      description: `Fix ${ruleFindings.length} ${ruleFindings[0]!.severity} finding(s): ${ruleFindings[0]!.title}. ${ruleFindings[0]!.remediation}`,
-      affectedRules: [ruleId],
-    });
-    priority++;
-  }
-
-  return recs;
-}
+// generateRecommendations is now in reports/report-builder.ts
 
 // ──────────────────────────────────────────────────
 // Start Server
