@@ -1,0 +1,60 @@
+
+ RUN  v2.1.9 /Users/shivyadav/dev/hipaalint
+
+ ✓ tests/unit/phi-detector.test.ts (33 tests) 52ms
+ ✓ tests/unit/auto-fixer.test.ts (25 tests) 72ms
+ ✓ tests/unit/ast-pattern.test.ts (16 tests) 220ms
+ ✓ tests/unit/rule-evaluator.test.ts (22 tests) 236ms
+ ✓ tests/integration/mcp-server.test.ts (19 tests) 441ms
+ ✓ tests/unit/input-schemas.test.ts (32 tests) 96ms
+ ✓ tests/unit/config-pattern.test.ts (11 tests) 143ms
+ ✓ tests/unit/score-calculator.test.ts (12 tests) 24ms
+ ✓ tests/unit/json-report.test.ts (9 tests) 106ms
+ ✓ tests/unit/path-validator.test.ts (17 tests) 21ms
+ ✓ tests/unit/badge-generator.test.ts (12 tests) 15ms
+ ✓ tests/unit/rule-loader.test.ts (17 tests) 425ms
+ ✓ tests/unit/regex-safety.test.ts (13 tests) 15ms
+ ✓ tests/unit/pdf-report.test.ts (7 tests) 486ms
+ ✓ tests/unit/finding-counter.test.ts (3 tests) 8ms
+stdout | tests/benchmark/scan-performance.test.ts > Performance Benchmarks > PHIDetector.detect() should process 1000-line file under 100ms
+PHIDetector.detect() avg: 25.08ms for 1000 lines
+
+stdout | tests/benchmark/scan-performance.test.ts > Performance Benchmarks > RuleEvaluator.evaluate() should process 10 files under 500ms
+RuleEvaluator.evaluate() total: 243.12ms
+  Files scanned: 11
+  Findings: 944
+  Duration (self-reported): 243ms
+
+stdout | tests/benchmark/scan-performance.test.ts > Performance Benchmarks > repeated scans should benefit from regex caching
+First scan: 275.05ms, Second scan: 316.17ms
+Cache benefit: -15.0% faster
+
+ ✓ tests/benchmark/scan-performance.test.ts (3 tests) 1467ms
+   ✓ Performance Benchmarks > RuleEvaluator.evaluate() should process 10 files under 500ms 661ms
+   ✓ Performance Benchmarks > repeated scans should benefit from regex caching 608ms
+ ✓ tests/e2e/full-project-scan.test.ts (8 tests) 4304ms
+   ✓ E2E: Full project scan > should work end-to-end via the CLI 3474ms
+ ✓ tests/integration/cli.test.ts (17 tests) 12289ms
+   ✓ CLI: scan > should scan a directory and output results 1443ms
+   ✓ CLI: scan > should exit 1 for non-compliant directory with critical findings 1346ms
+   ✓ CLI: scan > should output valid JSON with --json flag 1026ms
+   ✓ CLI: scan > should exit 2 for invalid path 641ms
+   ✓ CLI: score > should exit 0 for compliant directory 628ms
+   ✓ CLI: score > should output valid JSON with --json flag 721ms
+   ✓ CLI: score > should exit 1 when score is below threshold 838ms
+   ✓ CLI: score > should exit 2 for invalid path 615ms
+   ✓ CLI: report > should generate a JSON report in specified output directory 714ms
+   ✓ CLI: report > should default to JSON format 576ms
+   ✓ CLI: report > should exit 2 for invalid path 524ms
+   ✓ CLI: phi > should exit 1 and report PHI for non-compliant fixture 523ms
+   ✓ CLI: phi > should exit 0 for compliant fixture with no PHI 524ms
+   ✓ CLI: phi > should exit 2 for nonexistent file 526ms
+   ✓ CLI: rules > should exit 0 and list rules 542ms
+   ✓ CLI: rules > should output valid JSON array with --json flag 554ms
+   ✓ CLI: rules > should filter rules by category 543ms
+
+ Test Files  18 passed (18)
+      Tests  276 passed (276)
+   Start at  15:23:18
+   Duration  13.03s (transform 1.03s, setup 0ms, collect 3.30s, tests 20.42s, environment 8ms, prepare 3.18s)
+

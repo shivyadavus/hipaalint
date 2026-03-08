@@ -23,6 +23,7 @@ import {
   MCPPHIDetectArgsSchema,
   MCPRulesArgsSchema,
 } from '../security/index.js';
+import { loadConfig, mergeWithFlags } from '../engine/config-loader.js';
 
 // ──────────────────────────────────────────────────
 // MCP Server Setup
@@ -253,7 +254,14 @@ async function handleScan(args: Record<string, unknown>) {
 
   const evaluator = new RuleEvaluator({ sensitivity: validated.sensitivity });
   try {
-    const result = evaluator.evaluate([path], validated.framework, {
+    // Load .hipaalintrc and merge with MCP args
+    const projectConfig = loadConfig(path);
+    const merged = mergeWithFlags(projectConfig, {
+      sensitivity: validated.sensitivity !== 'balanced' ? validated.sensitivity : undefined,
+      framework: validated.framework !== 'hipaa' ? validated.framework : undefined,
+    });
+
+    const result = evaluator.evaluate([path], merged.framework, {
       maxDepth: validated.maxDepth,
       timeoutMs: validated.timeout,
     });
