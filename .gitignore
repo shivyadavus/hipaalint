@@ -35,11 +35,15 @@ npm-debug.log*
 # Package
 *.tgz
 
-# Internal planning docs
+# Internal planning docs (local-only)
 prd.md
 DESIGN_AND_IMPLEMENTATION_PLAN.md
 CLAUDE.md
-docs/
+PRODUCT_ROADMAP.md
+BACKLOG.md
+docs/TechDebt.md
+docs/ProductRoadmap.md
+docs/CriticalAnalysisPlan.md
 
 # Claude Code local files
 .claude/
