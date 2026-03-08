@@ -85,7 +85,7 @@ describe('CLI: scan', () => {
     const parsed = extractJSON(stdout) as Record<string, unknown>;
     expect(Array.isArray(parsed.findings)).toBe(true);
     expect((parsed.findings as unknown[]).length).toBeGreaterThan(0);
-    expect(parsed.rulesEvaluated).toBe(33);
+    expect(parsed.rulesEvaluated).toBe(43);
     expect(parsed.scanDurationMs as number).toBeGreaterThanOrEqual(0);
   });
 
@@ -116,7 +116,7 @@ describe('CLI: score', () => {
     expect(parsed.overallScore).toBeLessThanOrEqual(100);
     expect(['strong', 'needs_improvement', 'at_risk', 'critical']).toContain(parsed.band);
     expect(Object.keys(parsed.domainScores).length).toBe(6);
-    expect(parsed.metadata.rulesEvaluated).toBe(33);
+    expect(parsed.metadata.rulesEvaluated).toBe(43);
   });
 
   it('should exit 1 when score is below threshold', async () => {
@@ -218,7 +218,7 @@ describe('CLI: rules', () => {
     expect(exitCode).toBe(0);
     const parsed = JSON.parse(stdout);
     expect(Array.isArray(parsed)).toBe(true);
-    expect(parsed.length).toBe(33);
+    expect(parsed.length).toBe(59);
     for (const r of parsed) {
       expect(r.ruleId).toBeDefined();
       expect(r.severity).toBeDefined();
