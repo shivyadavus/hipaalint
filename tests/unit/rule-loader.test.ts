@@ -40,12 +40,12 @@ describe('RuleDatabase', () => {
     });
 
     it('should seed HIPAA rules on first initialization', () => {
-      expect(db.getRuleCount()).toBe(33);
+      expect(db.getRuleCount()).toBe(59);
     });
 
     it('should not re-seed if rules already exist', () => {
       db.initialize(); // Call again
-      expect(db.getRuleCount()).toBe(33);
+      expect(db.getRuleCount()).toBe(59);
     });
   });
 
@@ -71,7 +71,7 @@ describe('RuleDatabase', () => {
   describe('rule queries', () => {
     it('should get rules by framework', () => {
       const rules = db.getRulesByFramework('hipaa');
-      expect(rules.length).toBe(33);
+      expect(rules.length).toBe(43);
     });
 
     it('should get rules by severity', () => {
@@ -113,12 +113,12 @@ describe('RuleDatabase', () => {
     });
 
     it('should return correct rule count', () => {
-      expect(db.getRuleCount()).toBe(33);
+      expect(db.getRuleCount()).toBe(59);
     });
 
     it('should return all rules ordered by severity and category', () => {
       const rules = db.getAllRules();
-      expect(rules.length).toBe(33);
+      expect(rules.length).toBe(59);
     });
   });
 
