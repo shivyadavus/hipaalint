@@ -88,8 +88,8 @@ export class RuleDatabase {
     const resolvedPath = dbPath ?? getDefaultDatabasePath();
     mkdirSync(dirname(resolvedPath), { recursive: true });
     this.db = new Database(resolvedPath, { timeout: 5000 });
-    this.db.pragma('journal_mode = WAL');
     this.db.pragma('foreign_keys = ON');
+    this.enableWalMode();
   }
 
   initSchema(): void {
@@ -162,6 +162,20 @@ export class RuleDatabase {
     } catch (error) {
       this.db.exec('ROLLBACK');
       throw error;
+    }
+  }
+
+  private enableWalMode(): void {
+    try {
+      this.db.pragma('journal_mode = WAL');
+    } catch (error) {
+      if (
+        !(error instanceof Error) ||
+        !('code' in error) ||
+        (error as { code?: string }).code !== 'SQLITE_BUSY'
+      ) {
+        throw error;
+      }
     }
   }
 
