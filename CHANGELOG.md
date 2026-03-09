@@ -5,6 +5,7 @@ All notable changes to HipaaLint AI are documented here.
 ## [1.0.0] - 2026-03-05
 
 ### Added
+
 - **PHI Detection** — 18 HIPAA identifier detectors (8 regex + 9 variable patterns)
 - **Rule Evaluator** — 33 rules across 6 compliance domains with 5 pattern types (code, negative, config, import, semantic)
 - **Score Calculator** — Weighted 0-100 scoring with domain breakdown and severity clamping

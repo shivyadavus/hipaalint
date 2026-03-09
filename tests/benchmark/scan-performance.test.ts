@@ -7,7 +7,6 @@ import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const BENCH_DIR = resolve(__dirname, '../fixtures/benchmark-project');
-
 /**
  * Generate a synthetic TypeScript file with a mix of clean code and PHI patterns.
  */
@@ -74,7 +73,7 @@ describe('Performance Benchmarks', () => {
     expect(elapsed).toBeLessThan(100);
   });
 
-  it('RuleEvaluator.evaluate() should process 10 files under 500ms', () => {
+  it('RuleEvaluator.evaluate() should process 10 files under 700ms', () => {
     const evaluator = new RuleEvaluator({ sensitivity: 'balanced' });
     try {
       // Warm up
@@ -89,7 +88,7 @@ describe('Performance Benchmarks', () => {
       console.log(`  Findings: ${result.findings.length}`);
       console.log(`  Duration (self-reported): ${result.scanDurationMs}ms`);
 
-      expect(elapsed).toBeLessThan(500);
+      expect(elapsed).toBeLessThan(700);
       expect(result.filesScanned).toBeGreaterThanOrEqual(10);
     } finally {
       evaluator.close();

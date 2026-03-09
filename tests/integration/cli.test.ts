@@ -218,7 +218,7 @@ describe('CLI: rules', () => {
     expect(exitCode).toBe(0);
     const parsed = JSON.parse(stdout);
     expect(Array.isArray(parsed)).toBe(true);
-    expect(parsed.length).toBe(59);
+    expect(parsed.length).toBe(266);
     for (const r of parsed) {
       expect(r.ruleId).toBeDefined();
       expect(r.severity).toBeDefined();

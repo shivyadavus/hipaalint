@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { RuleDatabase } from '../../src/rules/rule-loader.js';
+import { RuleDatabase, getDefaultDatabasePath } from '../../src/rules/rule-loader.js';
 import { join } from 'path';
 import { mkdirSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
@@ -40,12 +40,47 @@ describe('RuleDatabase', () => {
     });
 
     it('should seed HIPAA rules on first initialization', () => {
-      expect(db.getRuleCount()).toBe(59);
+      expect(db.getRuleCount()).toBe(266);
     });
 
     it('should not re-seed if rules already exist', () => {
       db.initialize(); // Call again
-      expect(db.getRuleCount()).toBe(59);
+      expect(db.getRuleCount()).toBe(266);
+    });
+
+    it('should resolve the default database path from the environment when provided', () => {
+      const original = process.env.HIPAALINT_DB_PATH;
+      const overridePath = createTestDbPath();
+
+      process.env.HIPAALINT_DB_PATH = overridePath;
+      expect(getDefaultDatabasePath()).toBe(overridePath);
+
+      if (original === undefined) {
+        delete process.env.HIPAALINT_DB_PATH;
+      } else {
+        process.env.HIPAALINT_DB_PATH = original;
+      }
+    });
+
+    it('should initialize a default database in a user-writable directory', () => {
+      const original = process.env.HIPAALINT_DB_PATH;
+      const overridePath = createTestDbPath();
+      process.env.HIPAALINT_DB_PATH = overridePath;
+
+      const defaultDb = new RuleDatabase();
+      defaultDb.initialize();
+      expect(defaultDb.getRuleCount()).toBe(266);
+      defaultDb.close();
+
+      rmSync(overridePath, { force: true });
+      rmSync(`${overridePath}-shm`, { force: true });
+      rmSync(`${overridePath}-wal`, { force: true });
+
+      if (original === undefined) {
+        delete process.env.HIPAALINT_DB_PATH;
+      } else {
+        process.env.HIPAALINT_DB_PATH = original;
+      }
     });
   });
 
@@ -72,6 +107,11 @@ describe('RuleDatabase', () => {
     it('should get rules by framework', () => {
       const rules = db.getRulesByFramework('hipaa');
       expect(rules.length).toBe(43);
+    });
+
+    it('should expose expanded HITRUST and SOC2 frameworks', () => {
+      expect(db.getRulesByFramework('hitrust')).toHaveLength(156);
+      expect(db.getRulesByFramework('soc2-health')).toHaveLength(67);
     });
 
     it('should get rules by severity', () => {
@@ -113,12 +153,12 @@ describe('RuleDatabase', () => {
     });
 
     it('should return correct rule count', () => {
-      expect(db.getRuleCount()).toBe(59);
+      expect(db.getRuleCount()).toBe(266);
     });
 
     it('should return all rules ordered by severity and category', () => {
       const rules = db.getAllRules();
-      expect(rules.length).toBe(59);
+      expect(rules.length).toBe(266);
     });
   });
 

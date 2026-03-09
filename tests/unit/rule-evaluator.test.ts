@@ -407,7 +407,7 @@ describe('RuleEvaluator', () => {
       try {
         const db = evaluator.getRuleDatabase();
         expect(db).toBeDefined();
-        expect(db.getRuleCount()).toBe(59);
+        expect(db.getRuleCount()).toBe(266);
       } finally {
         evaluator.close();
       }
