@@ -112,7 +112,7 @@ jobs:
             echo "{\"jsonrpc\":\"2.0\",\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{},\"clientInfo\":{\"name\":\"ci-test\",\"version\":\"1.0\"}},\"id\":1}" | \
             node dist/mcp-server/index.js 2>/dev/null
           ' > /tmp/mcp-response.txt || true
-          
+
           if [ -s /tmp/mcp-response.txt ]; then
             echo "✅ MCP server responded"
             cat /tmp/mcp-response.txt

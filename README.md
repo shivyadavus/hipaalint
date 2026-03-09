@@ -12,7 +12,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-18%2B-green.svg)](https://nodejs.org/)
 
-*PHI detection, compliance scoring, auto-remediation, and audit reports — from your terminal, AI coding agent, or CI/CD pipeline.*
+_PHI detection, compliance scoring, auto-remediation, and audit reports — from your terminal, AI coding agent, or CI/CD pipeline._
 
 </div>
 
@@ -49,11 +49,13 @@ hipaalint report . --format pdf
 ## See It In Action
 
 ### HipaaLint Web API & Playground
+
 Integrate our powerful detection engine into your own web interfaces, or use our standalone interactive playground to audit compliance in real-time.
 
 <video src="./demo/demo.mp4" width="100%" controls autoplay loop muted></video>
 
 ### HipaaLint Terminal CLI
+
 Scan your entire codebase, calculate your compliance score, and auto-fix violations directly from your terminal workflow.
 
 <img src="./demo.gif" width="100%" />
@@ -114,12 +116,12 @@ hipaalint score ./src
    🟠 ai Governance:   37/100  (10% weight)
 ```
 
-| Band | Score | Meaning |
-|------|-------|---------|
-| Strong | 90-100 | Meets baseline HIPAA technical safeguards |
-| Needs Improvement | 70-89 | Minor gaps to address |
-| At Risk | 40-69 | Significant compliance gaps |
-| Critical | 0-39 | Immediate remediation required |
+| Band              | Score  | Meaning                                   |
+| ----------------- | ------ | ----------------------------------------- |
+| Strong            | 90-100 | Meets baseline HIPAA technical safeguards |
+| Needs Improvement | 70-89  | Minor gaps to address                     |
+| At Risk           | 40-69  | Significant compliance gaps               |
+| Critical          | 0-39   | Immediate remediation required            |
 
 Critical violations automatically clamp the score — exposed PHI caps you at 69, no encryption caps at 59.
 
@@ -145,11 +147,11 @@ hipaalint scan ./src --fix --dry-run
    ℹ️  1,726 finding(s) require manual remediation (no auto-fix)
 ```
 
-| Rule | What it fixes | Transform |
-|------|--------------|-----------|
+| Rule          | What it fixes    | Transform                                    |
+| ------------- | ---------------- | -------------------------------------------- |
 | HIPAA-ENC-001 | Unencrypted HTTP | `http://` → `https://` (preserves localhost) |
-| HIPAA-ENC-005 | Weak TLS/SSL | `TLSv1_0` / `SSLv3` → `TLSv1_2` |
-| HIPAA-INF-001 | CORS wildcard | `origin: "*"` → `process.env.CORS_ORIGIN` |
+| HIPAA-ENC-005 | Weak TLS/SSL     | `TLSv1_0` / `SSLv3` → `TLSv1_2`              |
+| HIPAA-INF-001 | CORS wildcard    | `origin: "*"` → `process.env.CORS_ORIGIN`    |
 
 The `--dry-run` flag previews every change with a diff before touching any file.
 
@@ -157,19 +159,19 @@ The `--dry-run` flag previews every change with a diff before touching any file.
 
 ## Features
 
-| Feature | Description |
-|---------|-------------|
-| **PHI Detection** | Detects all 18 HIPAA identifiers (SSN, DOB, MRN, email, phone, etc.) |
-| **HipaaLint Score** | Weighted 0-100 score across 6 compliance domains |
-| **Auto-Fix** | Safe, deterministic fixes for HTTP, TLS, and CORS violations |
+| Feature                  | Description                                                                                                |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| **PHI Detection**        | Detects all 18 HIPAA identifiers (SSN, DOB, MRN, email, phone, etc.)                                       |
+| **HipaaLint Score**      | Weighted 0-100 score across 6 compliance domains                                                           |
+| **Auto-Fix**             | Safe, deterministic fixes for HTTP, TLS, and CORS violations                                               |
 | **266 Compliance Rules** | Pre-seeded HIPAA, HITRUST CSF, and SOC 2 Health catalogs with semantic, regex, config, and import patterns |
-| **Audit Reports** | JSON, SARIF (GitHub Code Scanning), and PDF reports |
-| **MCP Server** | 5 tools for Claude Code, Cursor, and other AI agents |
-| **VS Code Extension** | Inline diagnostics, quick fixes, dashboard sidebar, and status bar score updates |
-| **JetBrains Plugin** | IntelliJ/WebStorm inspections, quick fixes, tool window dashboard, and project settings |
-| **GitHub Action** | CI/CD integration with SARIF upload and score thresholds |
-| **Pre-Commit Hook** | Block commits with critical HIPAA violations |
-| **Score Badge** | shields.io badge for your README |
+| **Audit Reports**        | JSON, SARIF (GitHub Code Scanning), and PDF reports                                                        |
+| **MCP Server**           | 5 tools for Claude Code, Cursor, and other AI agents                                                       |
+| **VS Code Extension**    | Inline diagnostics, quick fixes, dashboard sidebar, and status bar score updates                           |
+| **JetBrains Plugin**     | IntelliJ/WebStorm inspections, quick fixes, tool window dashboard, and project settings                    |
+| **GitHub Action**        | CI/CD integration with SARIF upload and score thresholds                                                   |
+| **Pre-Commit Hook**      | Block commits with critical HIPAA violations                                                               |
+| **Score Badge**          | shields.io badge for your README                                                                           |
 
 ## Editor Integrations
 
@@ -222,21 +224,23 @@ The mutable rule database now defaults to a user-writable application data direc
 
 ## The 6 Compliance Domains
 
-| Domain | Weight | What It Checks |
-|--------|--------|----------------|
-| **PHI Protection** | 25% | PHI in source code, logs, error handlers, API responses |
-| **Encryption** | 20% | TLS/HTTPS enforcement, strong hashing, no hardcoded keys |
-| **Access Control** | 20% | Auth middleware, RBAC, session timeout, MFA |
-| **Audit Logging** | 15% | Structured audit trails, log retention, PHI scrubbing |
-| **Infrastructure** | 10% | CORS security, security headers, rate limiting |
-| **AI Governance** | 10% | PHI scrubbing for AI prompts, model input sanitization |
+| Domain             | Weight | What It Checks                                           |
+| ------------------ | ------ | -------------------------------------------------------- |
+| **PHI Protection** | 25%    | PHI in source code, logs, error handlers, API responses  |
+| **Encryption**     | 20%    | TLS/HTTPS enforcement, strong hashing, no hardcoded keys |
+| **Access Control** | 20%    | Auth middleware, RBAC, session timeout, MFA              |
+| **Audit Logging**  | 15%    | Structured audit trails, log retention, PHI scrubbing    |
+| **Infrastructure** | 10%    | CORS security, security headers, rate limiting           |
+| **AI Governance**  | 10%    | PHI scrubbing for AI prompts, model input sanitization   |
 
 ---
 
 ## CLI Commands
 
 ### `hipaalint scan [path]`
+
 Scan a project for HIPAA violations:
+
 ```bash
 hipaalint scan ./src --sensitivity strict
 hipaalint scan ./src --fix              # auto-fix simple violations
@@ -246,7 +250,9 @@ hipaalint scan ./src --sarif            # GitHub Code Scanning format
 ```
 
 ### `hipaalint score [path]`
+
 Calculate the HipaaLint Score:
+
 ```bash
 hipaalint score .                    # display score
 hipaalint score . --threshold 80     # fail CI if below 80
@@ -254,7 +260,9 @@ hipaalint score . --json             # machine-readable output
 ```
 
 ### `hipaalint report [path]`
+
 Generate audit reports:
+
 ```bash
 hipaalint report . --format pdf --output ./reports
 hipaalint report . --format sarif    # for GitHub Code Scanning
@@ -262,13 +270,17 @@ hipaalint report . --format json     # structured JSON report
 ```
 
 ### `hipaalint phi <file>`
+
 Detect PHI in a specific file:
+
 ```bash
 hipaalint phi ./src/api/patients.ts
 ```
 
 ### `hipaalint rules`
+
 Browse the rule database:
+
 ```bash
 hipaalint rules --category phi_protection --severity critical
 hipaalint rules --query "encryption" --json
@@ -292,6 +304,7 @@ HipaaLint runs as an MCP server, giving AI coding agents 5 compliance tools:
 ```
 
 **Available Tools:**
+
 - `compliance_scan` — Scan project for violations
 - `compliance_score` — Calculate compliance score
 - `compliance_report` — Generate audit reports (JSON/PDF)
@@ -299,6 +312,7 @@ HipaaLint runs as an MCP server, giving AI coding agents 5 compliance tools:
 - `compliance_rules` — Search and browse the rule database
 
 **Slash Commands:**
+
 - `/compliance:scan` — Run a compliance scan
 - `/compliance:report` — Generate an audit report
 
@@ -333,6 +347,7 @@ Blocks commits with critical HIPAA violations. Warns on high-severity findings.
 ## Score Badge
 
 Add to your README:
+
 ```markdown
 [![HipaaLint Score](https://img.shields.io/badge/HipaaLint-92%2F100-00c853?style=for-the-badge)](https://github.com/your-org/your-repo)
 ```

@@ -185,12 +185,14 @@ export class RuleDatabase {
       return true;
     }
 
-    const rows = this.db.prepare(
-      `SELECT f.name as name, f.version as version, COUNT(r.id) as count
+    const rows = this.db
+      .prepare(
+        `SELECT f.name as name, f.version as version, COUNT(r.id) as count
        FROM frameworks f
        LEFT JOIN rules r ON r.framework_id = f.id
        GROUP BY f.name`,
-    ).all() as Array<{ name: string; version: string; count: number }>;
+      )
+      .all() as Array<{ name: string; version: string; count: number }>;
 
     const byFramework = new Map(rows.map((row) => [row.name, row]));
     for (const [framework, expectedCount] of Object.entries(EXPECTED_RULE_COUNTS)) {

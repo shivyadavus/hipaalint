@@ -50,7 +50,11 @@ declare module '@hipaalint/ai' {
     close(): void;
   }
   export class ScoreCalculator {
-    calculateScore(scanResult: ScanResult, framework?: string, sensitivity?: SensitivityLevel): ComplianceScore;
+    calculateScore(
+      scanResult: ScanResult,
+      framework?: string,
+      sensitivity?: SensitivityLevel,
+    ): ComplianceScore;
   }
   export function countFindings(scanResult: ScanResult['findings']): {
     bySeverity: Record<'critical' | 'high' | 'medium' | 'low' | 'info', number>;
