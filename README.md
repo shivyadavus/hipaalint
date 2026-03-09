@@ -212,6 +212,12 @@ Run the full local release gate before cutting a tag:
 npm run verify:release
 ```
 
+Synchronize the version across npm, Claude plugin metadata, VS Code, and JetBrains before tagging:
+
+```bash
+npm run release:prepare -- patch
+```
+
 The mutable rule database now defaults to a user-writable application data directory. Set `HIPAALINT_DB_PATH` if you need to pin it explicitly for CI, sandboxes, or editor integrations.
 
 ## The 6 Compliance Domains

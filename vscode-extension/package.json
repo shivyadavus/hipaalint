@@ -65,13 +65,21 @@
       "properties": {
         "hipaalint.framework": {
           "type": "string",
-          "enum": ["hipaa", "hitrust", "soc2-health"],
+          "enum": [
+            "hipaa",
+            "hitrust",
+            "soc2-health"
+          ],
           "default": "hipaa",
           "description": "Default framework when the workspace does not override it in .hipaalintrc."
         },
         "hipaalint.sensitivity": {
           "type": "string",
-          "enum": ["strict", "balanced", "relaxed"],
+          "enum": [
+            "strict",
+            "balanced",
+            "relaxed"
+          ],
           "default": "balanced",
           "description": "Detection sensitivity for editor scans."
         },
