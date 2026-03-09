@@ -19,13 +19,15 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
       - run: npm ci
-      - run: npm run lint
-      - run: npm run typecheck
-      - run: npm run test
-      - run: npm run build
-      - name: Validate plugin
-        run: bash scripts/validate-plugin.sh
+      - run: npm run verify:release
 
   publish-npm:
     name: Publish to npm
@@ -59,9 +61,22 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npm run build
+      - run: npm run rules:generate
 
       - name: Package tarball
         run: npm pack
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - name: Package VS Code extension
+        run: npm run vscode:package
+      - name: Package JetBrains plugin
+        run: npm run jetbrains:build
 
       - name: Generate changelog
         id: changelog
@@ -101,7 +116,8 @@ jobs:
           ### Plugin Info
           - MCP Server: 5 tools
           - CLI: 5 commands
-          - Rules: 29 HIPAA rules across 6 domains
+          - Rules: 266 total rules (43 HIPAA, 156 HITRUST, 67 SOC2 Health)
+          - IDEs: VS Code extension and JetBrains plugin artifacts
           BODY
 
       - name: Create Release
@@ -110,5 +126,7 @@ jobs:
           body_path: /tmp/changelog.md
           files: |
             hipaalint-ai-*.tgz
+            hipaalint-vscode-*.vsix
+            jetbrains-plugin/build/distributions/*.zip
           draft: false
           prerelease: ${{ contains(github.ref, '-alpha') || contains(github.ref, '-beta') || contains(github.ref, '-rc') }}

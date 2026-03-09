@@ -17,6 +17,12 @@ dist/
 # IDE
 .vscode/
 .idea/
+.gradle/
+jetbrains-plugin/.gradle/
+jetbrains-plugin/build/
+vscode-extension/out/
+*.vsix
+*.zip
 *.swp
 *.swo
 *~

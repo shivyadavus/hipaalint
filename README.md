@@ -22,7 +22,7 @@
 
 A single exposed SSN in a log statement or an `http://` instead of `https://` can trigger a HIPAA violation carrying fines up to **$1.9M per incident**. With AI coding assistants generating code faster than ever, compliance gaps slip through at scale.
 
-HipaaLint scans your codebase against **33 rules across 6 compliance domains**, scores your project 0-100, and **auto-fixes simple violations** — all in under a second.
+HipaaLint scans your codebase against **266 rules across HIPAA, HITRUST CSF, and SOC 2 Health**, scores your project 0-100, and **auto-fixes simple violations** directly in the CLI and editor integrations.
 
 ## Quick Start
 
@@ -73,7 +73,7 @@ hipaalint scan ./src
 
 📊 Results:
    Files scanned: 128
-   Rules evaluated: 33
+   Rules evaluated: 266
    Duration: 869ms
 
    🔴 Critical: 31
@@ -162,12 +162,57 @@ The `--dry-run` flag previews every change with a diff before touching any file.
 | **PHI Detection** | Detects all 18 HIPAA identifiers (SSN, DOB, MRN, email, phone, etc.) |
 | **HipaaLint Score** | Weighted 0-100 score across 6 compliance domains |
 | **Auto-Fix** | Safe, deterministic fixes for HTTP, TLS, and CORS violations |
-| **33 HIPAA Rules** | Pre-seeded rule database with regex, semantic, config, and import patterns |
+| **266 Compliance Rules** | Pre-seeded HIPAA, HITRUST CSF, and SOC 2 Health catalogs with semantic, regex, config, and import patterns |
 | **Audit Reports** | JSON, SARIF (GitHub Code Scanning), and PDF reports |
 | **MCP Server** | 5 tools for Claude Code, Cursor, and other AI agents |
+| **VS Code Extension** | Inline diagnostics, quick fixes, dashboard sidebar, and status bar score updates |
+| **JetBrains Plugin** | IntelliJ/WebStorm inspections, quick fixes, tool window dashboard, and project settings |
 | **GitHub Action** | CI/CD integration with SARIF upload and score thresholds |
 | **Pre-Commit Hook** | Block commits with critical HIPAA violations |
 | **Score Badge** | shields.io badge for your README |
+
+## Editor Integrations
+
+### VS Code
+
+The repository ships a full VS Code extension in `vscode-extension/` with:
+
+- inline diagnostics for HIPAA, HITRUST, and SOC 2 findings
+- quick fixes for insecure HTTP, weak TLS, and wildcard CORS
+- a compliance dashboard sidebar
+- a status bar score badge
+- `.hipaalintrc` and workspace settings integration
+
+Build and package it from the repo root:
+
+```bash
+npm run vscode:package
+```
+
+### JetBrains
+
+The repository also ships a JetBrains plugin in `jetbrains-plugin/` with:
+
+- local inspections for JavaScript, TypeScript, Python, and Java files
+- quick-fix intentions for the same auto-fixable transport rules
+- a tool-window dashboard powered by the HipaaLint CLI
+- project settings for framework, sensitivity, config path, and CLI path
+
+Build it with Gradle and JDK 21:
+
+```bash
+npm run jetbrains:build
+```
+
+## Release Readiness
+
+Run the full local release gate before cutting a tag:
+
+```bash
+npm run verify:release
+```
+
+The mutable rule database now defaults to a user-writable application data directory. Set `HIPAALINT_DB_PATH` if you need to pin it explicitly for CI, sandboxes, or editor integrations.
 
 ## The 6 Compliance Domains
 
@@ -300,7 +345,7 @@ src/
 │   ├── auto-fixer.ts      # Auto-remediation engine
 │   └── regex-cache.ts     # Compiled regex cache for performance
 ├── rules/                 # Rule database
-│   └── db/                # SQLite schema + 33 HIPAA rules
+│   └── db/                # SQLite schema + HIPAA/HITRUST/SOC2 rule catalogs
 ├── mcp-server/            # MCP server (5 tools)
 ├── cli/                   # CLI entry point (commander.js)
 ├── reports/               # JSON, SARIF, PDF generators

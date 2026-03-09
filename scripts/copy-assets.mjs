@@ -1,12 +1,11 @@
 #!/usr/bin/env node
 
 /**
- * Cross-platform asset copier — replaces Unix-only `cp -r`.
- * Copies src/rules/db/*.sql to dist/rules/db/.
+ * Cross-platform asset copier for immutable SQL seed assets.
  */
 
-import { cpSync, mkdirSync, existsSync } from 'fs';
-import { join } from 'path';
+import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync } from 'fs';
+import { extname, join } from 'path';
 
 const src = join('src', 'rules', 'db');
 const dest = join('dist', 'rules', 'db');
@@ -16,7 +15,15 @@ if (!existsSync(src)) {
   process.exit(0);
 }
 
+rmSync(dest, { recursive: true, force: true });
 mkdirSync(dest, { recursive: true });
-cpSync(src, dest, { recursive: true });
+
+for (const entry of readdirSync(src, { withFileTypes: true })) {
+  if (!entry.isFile() || extname(entry.name) !== '.sql') {
+    continue;
+  }
+
+  copyFileSync(join(src, entry.name), join(dest, entry.name));
+}
 
 console.log(`Copied ${src} → ${dest}`);
