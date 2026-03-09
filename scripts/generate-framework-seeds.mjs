@@ -1,0 +1,451 @@
+import { writeFileSync } from 'fs';
+
+const commonCheckFiles = ['package.json', '*.yml', '*.yaml', '.env', '*.json', '*.md', '*.tf', 'Dockerfile'];
+const ciCheckFiles = ['package.json', '*.yml', '*.yaml', '.github', '*.json'];
+const policyCheckFiles = ['*.md', '*.json', '*.yml', '*.yaml', 'package.json', '.env'];
+const infraCheckFiles = ['*.tf', '*.yml', '*.yaml', 'Dockerfile', 'docker-compose.yml', '.env', '*.json'];
+const codeCheckFiles = ['package.json', '*.json', '*.md', '*.yml', '*.yaml'];
+
+function sqlEscape(value) {
+  return String(value).replace(/'/g, "''");
+}
+
+function asRuleRow(frameworkName, rule) {
+  const values = [
+    `((SELECT id FROM frameworks WHERE name = '${frameworkName}'))`,
+    `'${sqlEscape(rule.ruleId)}'`,
+    `'${sqlEscape(rule.title)}'`,
+    `'${sqlEscape(rule.description)}'`,
+    `'${rule.severity}'`,
+    `'${rule.category}'`,
+    `'${sqlEscape(rule.citation)}'`,
+    `'${sqlEscape(rule.remediation)}'`,
+    `'${rule.patternType}'`,
+    `'${sqlEscape(JSON.stringify(rule.patternConfig))}'`,
+    rule.isRequired ? '1' : '0',
+  ];
+  return `(${values.join(', ')})`;
+}
+
+function configRule(ruleId, title, description, severity, category, citation, remediation, patterns, checkFiles = policyCheckFiles, isRequired = true) {
+  return {
+    ruleId,
+    title,
+    description,
+    severity,
+    category,
+    citation,
+    remediation,
+    patternType: 'config_pattern',
+    patternConfig: {
+      scope: 'project',
+      checkFiles,
+      patterns,
+    },
+    isRequired,
+  };
+}
+
+function importRule(ruleId, title, description, severity, category, citation, remediation, requiredImports, isRequired = true) {
+  return {
+    ruleId,
+    title,
+    description,
+    severity,
+    category,
+    citation,
+    remediation,
+    patternType: 'import_pattern',
+    patternConfig: {
+      scope: 'project',
+      requiredImports,
+    },
+    isRequired,
+  };
+}
+
+function codeRule(ruleId, title, description, severity, category, citation, remediation, patternConfig, isRequired = true) {
+  return {
+    ruleId,
+    title,
+    description,
+    severity,
+    category,
+    citation,
+    remediation,
+    patternType: 'code_pattern',
+    patternConfig,
+    isRequired,
+  };
+}
+
+function negativeRule(ruleId, title, description, severity, category, citation, remediation, patternConfig, isRequired = true) {
+  return {
+    ruleId,
+    title,
+    description,
+    severity,
+    category,
+    citation,
+    remediation,
+    patternType: 'negative_pattern',
+    patternConfig,
+    isRequired,
+  };
+}
+
+function semanticRule(ruleId, title, description, severity, category, citation, remediation, patternConfig, isRequired = true) {
+  return {
+    ruleId,
+    title,
+    description,
+    severity,
+    category,
+    citation,
+    remediation,
+    patternType: 'semantic_pattern',
+    patternConfig,
+    isRequired,
+  };
+}
+
+const hitrustBase = [
+  semanticRule('HITRUST-09.L-01', 'PHI in Log Statements', 'Detects potential PHI in log and print statements.', 'critical', 'phi_protection', 'HITRUST CSF v11 - 09.L Monitoring System Use', 'Remove PHI from all log statements. Use tokenized identifiers.', {
+    nodeTypes: ['call_expression'],
+    functionNames: ['console.log', 'console.error', 'console.warn', 'console.info', 'logger.info', 'logger.warn', 'logger.error', 'print', 'logging.info', 'logging.warning', 'logging.error'],
+    checkArguments: true,
+  }),
+  negativeRule('HITRUST-01.V-01', 'Unencrypted Data Transmission', 'Detects use of unencrypted HTTP in code or configuration.', 'critical', 'encryption', 'HITRUST CSF v11 - 01.v Information Exchange Policies', 'Use HTTPS for all data transmission and enforce TLS 1.2 or newer.', {
+    regex: 'http://(?!localhost|127\\.0\\.0\\.1|0\\.0\\.0\\.0)',
+    exclude: ['*.test.*', '*.md'],
+  }),
+  codeRule('HITRUST-06.D-01', 'Hardcoded Secrets', 'Detects hardcoded encryption keys, API keys, or passwords.', 'critical', 'encryption', 'HITRUST CSF v11 - 06.d Protection of Keys', 'Use a secrets manager or environment variables for all credentials.', {
+    variableNames: ['secretKey', 'secret_key', 'encryptionKey', 'encryption_key', 'apiKey', 'api_key', 'privateKey', 'private_key', 'password', 'passwd'],
+    checkAssignment: true,
+    excludeEnvAccess: true,
+  }),
+  semanticRule('HITRUST-01.C-01', 'Missing Access Control', 'Checks API routes for authentication middleware.', 'critical', 'access_control', 'HITRUST CSF v11 - 01.c Privilege Management', 'Add authentication middleware to all routes that access sensitive data.', {
+    routePatterns: ['app.get', 'app.post', 'app.put', 'app.delete', 'router.get', 'router.post'],
+    requireMiddleware: ['auth', 'authenticate', 'requireAuth', 'isAuthenticated', 'verifyToken'],
+  }),
+  importRule('HITRUST-01.Q-01', 'Missing MFA', 'Checks for multi-factor authentication implementation.', 'high', 'access_control', 'HITRUST CSF v11 - 01.q User Identification and Authentication', 'Implement MFA for users who access protected data.', ['totp', 'mfa', 'two-factor', 'otplib', 'speakeasy', 'webauthn', '@auth0', 'amazon-cognito', 'passport', 'next-auth', '@clerk']),
+  importRule('HITRUST-09.AA-01', 'Missing Audit Logging', 'Checks for audit logging and monitoring dependencies.', 'high', 'audit_logging', 'HITRUST CSF v11 - 09.aa Audit Logging', 'Implement centralized audit logging for access and change events.', ['audit', 'audit-log', 'winston', 'pino', 'bunyan', 'log4js', '@sentry', 'datadog', 'morgan']),
+  importRule('HITRUST-10.B-01', 'Missing Input Validation', 'Checks for input validation tooling in the codebase.', 'high', 'infrastructure', 'HITRUST CSF v11 - 10.b Input Data Validation', 'Validate user input with zod, joi, ajv, or equivalent libraries.', ['zod', 'joi', 'yup', 'class-validator', 'express-validator', 'validator', 'ajv'], false),
+  importRule('HITRUST-09.M-01', 'Missing Security Headers', 'Checks for essential HTTP security header middleware.', 'medium', 'infrastructure', 'HITRUST CSF v11 - 09.m Network Controls', 'Enable HSTS, CSP, and related response headers with helmet or equivalent middleware.', ['helmet', 'csp', 'hsts']),
+  codeRule('HITRUST-10.C-01', 'Wildcard CORS Policy', 'Detects wildcard CORS policies that expose protected resources.', 'high', 'infrastructure', 'HITRUST CSF v11 - 10.c Communication Networks', 'Restrict CORS to trusted origins instead of using wildcard access.', {
+    patterns: ['origin\\s*:\\s*["\'`]\\*["\'`]', 'Access-Control-Allow-Origin.*\\*', 'cors\\(\\)'],
+    exclude: ['*.test.*'],
+  }),
+  codeRule('HITRUST-11.A-01', 'Insecure Cryptographic Algorithm', 'Detects deprecated hashing and cipher primitives.', 'critical', 'encryption', 'HITRUST CSF v11 - 11.a Cryptographic Controls', 'Use modern ciphers such as AES-256-GCM, SHA-256, bcrypt, or argon2.', {
+    regex: String.raw`createHash\((?:"|')(?:md5|sha1)(?:"|')|\b(?:md5|sha1)\s*\(`,
+    excludePatterns: [],
+  }),
+  codeRule('HITRUST-01.G-01', 'Session Management Timeout', 'Checks for excessively long application session durations.', 'high', 'access_control', 'HITRUST CSF v11 - 01.g Session Timeout', 'Set secure cookie attributes and enforce short idle and absolute session timeouts.', {
+    regex: 'maxAge\\s*:\\s*[0-9]{8,}',
+    excludePatterns: [],
+  }),
+  importRule('HITRUST-01.P-01', 'Weak Password Policy Enforcer', 'Checks for password strength evaluation dependencies.', 'medium', 'access_control', 'HITRUST CSF v11 - 01.p Password Management', 'Enforce strong password quality checks and block compromised passwords.', ['zxcvbn', 'owasp-password-strength-test'], false),
+  codeRule('HITRUST-01.A-01', 'Unrestricted Admin Endpoint', 'Detects admin or system endpoints without obvious RBAC enforcement on the same line.', 'high', 'access_control', 'HITRUST CSF v11 - 01.a Access Control Policy', 'Protect all admin endpoints with explicit authorization middleware.', {
+    regex: '/(admin|system)',
+    excludePatterns: ['authorizeRole', 'requireAdmin', 'rbac'],
+  }),
+];
+
+const hitrustThemes = [
+  ['HITRUST-01.B-01', 'Quarterly Access Review Workflow', 'high', 'access_control', 'config', ['access review', 'access certification', 'quarterly review'], policyCheckFiles, 'HITRUST CSF v11 - 01.b Access Authorization', 'Automate quarterly access reviews for privileged and PHI-bearing roles.'],
+  ['HITRUST-01.D-01', 'Dormant Account Disablement', 'high', 'access_control', 'config', ['disable dormant accounts', 'inactive account', 'account disablement'], policyCheckFiles, 'HITRUST CSF v11 - 01.d Account Provisioning', 'Disable dormant identities and service accounts on a defined schedule.'],
+  ['HITRUST-01.E-01', 'Break-Glass Account Governance', 'high', 'access_control', 'config', ['break glass', 'emergency access', 'privileged escalation'], policyCheckFiles, 'HITRUST CSF v11 - 01.e Emergency Access', 'Document emergency access controls and require post-use review.'],
+  ['HITRUST-01.F-01', 'Joiner Mover Leaver Workflow', 'high', 'access_control', 'config', ['joiner mover leaver', 'access onboarding', 'offboarding'], policyCheckFiles, 'HITRUST CSF v11 - 01.f User Lifecycle Management', 'Automate onboarding, transfers, and offboarding for every workforce identity.'],
+  ['HITRUST-01.H-01', 'Privileged Access Request Approval', 'high', 'access_control', 'config', ['privileged access request', 'approval workflow', 'least privilege'], policyCheckFiles, 'HITRUST CSF v11 - 01.h Privileged Access', 'Require approved tickets and time-bound approval for privileged access.'],
+  ['HITRUST-01.I-01', 'Federated Identity Governance', 'medium', 'access_control', 'import', ['saml', 'oidc', 'openid-client', 'passport-saml'], null, 'HITRUST CSF v11 - 01.i Federated Identity', 'Use managed federation and central identity providers for workforce access.'],
+  ['HITRUST-01.J-01', 'Just-in-Time Access Controls', 'high', 'access_control', 'config', ['just in time access', 'jit access', 'temporary elevation'], policyCheckFiles, 'HITRUST CSF v11 - 01.j Temporary Privilege', 'Implement short-lived privileged access with automatic expiry.'],
+  ['HITRUST-01.K-01', 'Service Account Inventory', 'medium', 'access_control', 'config', ['service account inventory', 'machine identity', 'bot account'], policyCheckFiles, 'HITRUST CSF v11 - 01.k Service Accounts', 'Maintain an inventory of non-human identities and rotate their credentials.'],
+  ['HITRUST-01.L-01', 'Conditional Access Policies', 'high', 'access_control', 'config', ['conditional access', 'device trust', 'location based access'], policyCheckFiles, 'HITRUST CSF v11 - 01.l Adaptive Access', 'Enforce device and context-aware access policies for sensitive workflows.'],
+  ['HITRUST-01.M-01', 'Session Revocation Capability', 'medium', 'access_control', 'config', ['session revocation', 'logout all sessions', 'token revocation'], policyCheckFiles, 'HITRUST CSF v11 - 01.m Session Control', 'Provide centralized session revocation for compromised or terminated identities.'],
+  ['HITRUST-01.N-01', 'API Credential Segregation', 'high', 'access_control', 'config', ['scoped api key', 'credential scope', 'least privilege token'], policyCheckFiles, 'HITRUST CSF v11 - 01.n Credential Scope', 'Scope API credentials to the minimum set of actions and datasets required.'],
+  ['HITRUST-01.O-01', 'Shared Account Prohibition', 'medium', 'access_control', 'config', ['shared account', 'individual accountability', 'named account'], policyCheckFiles, 'HITRUST CSF v11 - 01.o Individual Accountability', 'Eliminate shared workforce accounts and require named identities.'],
+  ['HITRUST-01.R-01', 'Privileged Command Logging', 'high', 'audit_logging', 'config', ['privileged command log', 'admin action log', 'privileged session recording'], policyCheckFiles, 'HITRUST CSF v11 - 01.r Privileged Activity Logging', 'Log privileged commands and changes with user attribution.'],
+  ['HITRUST-01.S-01', 'Access Exception Register', 'medium', 'access_control', 'config', ['access exception', 'compensating control', 'temporary exception'], policyCheckFiles, 'HITRUST CSF v11 - 01.s Access Exceptions', 'Track access exceptions, approvals, and expiry dates.'],
+  ['HITRUST-01.T-01', 'Role Separation Matrix', 'medium', 'access_control', 'config', ['segregation of duties', 'role separation', 'duty conflict'], policyCheckFiles, 'HITRUST CSF v11 - 01.t Segregation of Duties', 'Define incompatible roles and block conflicting assignments.'],
+  ['HITRUST-01.U-01', 'Administrative Workstation Hardening', 'high', 'access_control', 'config', ['privileged workstation', 'admin workstation', 'secure admin host'], policyCheckFiles, 'HITRUST CSF v11 - 01.u Privileged Workstations', 'Require hardened administrative workstations for privileged operations.'],
+  ['HITRUST-01.W-01', 'Access Analytics Monitoring', 'medium', 'audit_logging', 'config', ['access analytics', 'anomalous access', 'privileged anomaly'], policyCheckFiles, 'HITRUST CSF v11 - 01.w Access Analytics', 'Monitor unusual access patterns and respond to privilege anomalies quickly.'],
+  ['HITRUST-01.X-01', 'Vendor Access Reviews', 'medium', 'access_control', 'config', ['vendor access review', 'third party access review', 'supplier access'], policyCheckFiles, 'HITRUST CSF v11 - 01.x External Access', 'Review and recertify vendor access to regulated systems on a fixed cadence.'],
+  ['HITRUST-05.A-01', 'Mobile Device Inventory', 'medium', 'infrastructure', 'config', ['mobile device inventory', 'device ownership', 'asset register'], policyCheckFiles, 'HITRUST CSF v11 - 05.a Mobile Device Security', 'Maintain an accurate inventory of workforce devices with access to sensitive systems.'],
+  ['HITRUST-05.B-01', 'Mobile Device Encryption', 'high', 'encryption', 'config', ['device encryption', 'full disk encryption', 'mobile encryption'], policyCheckFiles, 'HITRUST CSF v11 - 05.b Mobile Encryption', 'Enforce full-disk encryption on all managed laptops, tablets, and phones.'],
+  ['HITRUST-05.C-01', 'Remote Wipe Capability', 'high', 'infrastructure', 'config', ['remote wipe', 'device wipe', 'lost device response'], policyCheckFiles, 'HITRUST CSF v11 - 05.c Device Sanitization', 'Enable remote wipe and documented lost-device response workflows.'],
+  ['HITRUST-05.D-01', 'Screen Lock Enforcement', 'medium', 'access_control', 'config', ['screen lock', 'device timeout', 'auto lock'], policyCheckFiles, 'HITRUST CSF v11 - 05.d Screen Locking', 'Require automatic screen locking and PIN enforcement on managed devices.'],
+  ['HITRUST-05.E-01', 'Jailbreak and Root Detection', 'medium', 'infrastructure', 'config', ['rooted device', 'jailbreak detection', 'device attestation'], policyCheckFiles, 'HITRUST CSF v11 - 05.e Platform Integrity', 'Block rooted or jailbroken devices from accessing regulated workflows.'],
+  ['HITRUST-05.F-01', 'Mobile Application Allowlisting', 'medium', 'access_control', 'config', ['app allowlist', 'managed app catalog', 'approved mobile apps'], policyCheckFiles, 'HITRUST CSF v11 - 05.f Managed Applications', 'Restrict managed devices to approved enterprise applications.'],
+  ['HITRUST-05.G-01', 'Clipboard Data Loss Controls', 'medium', 'infrastructure', 'config', ['clipboard restriction', 'copy paste restriction', 'data loss prevention'], policyCheckFiles, 'HITRUST CSF v11 - 05.g Data Leakage Prevention', 'Prevent copy/paste and share-sheet leaks from sensitive mobile apps.'],
+  ['HITRUST-05.H-01', 'MDM Enrollment Requirement', 'high', 'infrastructure', 'import', ['jamf', 'intune', 'mobileiron', 'airwatch'], null, 'HITRUST CSF v11 - 05.h Mobile Device Management', 'Require device enrollment in an approved MDM platform before access is granted.'],
+  ['HITRUST-05.I-01', 'Removable Media Restrictions', 'medium', 'infrastructure', 'config', ['usb restriction', 'removable media', 'external storage'], policyCheckFiles, 'HITRUST CSF v11 - 05.i Removable Media', 'Restrict removable media usage or require encryption and logging.'],
+  ['HITRUST-05.J-01', 'Mobile Backup Encryption', 'medium', 'encryption', 'config', ['encrypted backup', 'mobile backup', 'backup encryption'], policyCheckFiles, 'HITRUST CSF v11 - 05.j Backup Protection', 'Encrypt device backups and control restore destinations.'],
+  ['HITRUST-05.K-01', 'Lost Device Escalation Procedure', 'medium', 'audit_logging', 'config', ['lost device', 'stolen device', 'security escalation'], policyCheckFiles, 'HITRUST CSF v11 - 05.k Incident Escalation', 'Define escalation procedures for lost or stolen workforce devices.'],
+  ['HITRUST-05.L-01', 'Mobile Patch Compliance', 'medium', 'infrastructure', 'config', ['mobile patching', 'device compliance', 'os update policy'], policyCheckFiles, 'HITRUST CSF v11 - 05.l Patch Management', 'Require current OS and security patch levels for managed devices.'],
+  ['HITRUST-05.M-01', 'Device Certificate Authentication', 'high', 'access_control', 'config', ['device certificate', 'mutual tls', 'client certificate'], policyCheckFiles, 'HITRUST CSF v11 - 05.m Device Authentication', 'Use device certificates or equivalent attestation for trusted device access.'],
+  ['HITRUST-05.N-01', 'Mobile Containerization', 'medium', 'infrastructure', 'config', ['containerized app', 'work profile', 'managed container'], policyCheckFiles, 'HITRUST CSF v11 - 05.n Application Containers', 'Separate enterprise data into managed containers on BYOD endpoints.'],
+  ['HITRUST-05.O-01', 'Mobile Geofence Policies', 'low', 'access_control', 'config', ['geofence access', 'location restriction', 'regional access'], policyCheckFiles, 'HITRUST CSF v11 - 05.o Location Restrictions', 'Apply regional or facility-based restrictions for sensitive mobile workflows when appropriate.'],
+  ['HITRUST-05.P-01', 'Mobile Data Sharing Restrictions', 'medium', 'infrastructure', 'config', ['managed open in', 'data sharing restriction', 'share policy'], policyCheckFiles, 'HITRUST CSF v11 - 05.p Data Sharing', 'Restrict data sharing from managed mobile applications to trusted destinations only.'],
+  ['HITRUST-05.Q-01', 'Mobile Certificate Rotation', 'medium', 'access_control', 'config', ['certificate rotation', 'device cert renewal', 'mdm certificate'], policyCheckFiles, 'HITRUST CSF v11 - 05.q Device Credential Rotation', 'Rotate device credentials and certificates on a documented schedule.'],
+  ['HITRUST-08.A-01', 'Background Screening Program', 'medium', 'access_control', 'config', ['background screening', 'pre-employment check', 'reference check'], policyCheckFiles, 'HITRUST CSF v11 - 08.a Human Resources Security', 'Document background screening requirements for workforce members with privileged access.'],
+  ['HITRUST-08.B-01', 'Security Awareness Training', 'high', 'access_control', 'config', ['security awareness', 'annual training', 'phishing training'], policyCheckFiles, 'HITRUST CSF v11 - 08.b Security Training', 'Deliver recurring security and privacy training to the workforce.'],
+  ['HITRUST-08.C-01', 'Confidentiality Agreements', 'medium', 'access_control', 'config', ['confidentiality agreement', 'acceptable use', 'nda'], policyCheckFiles, 'HITRUST CSF v11 - 08.c Workforce Agreements', 'Require signed confidentiality and acceptable-use agreements.'],
+  ['HITRUST-08.D-01', 'Disciplinary Process for Security Violations', 'medium', 'access_control', 'config', ['disciplinary process', 'security violation', 'policy enforcement'], policyCheckFiles, 'HITRUST CSF v11 - 08.d Policy Enforcement', 'Document a disciplinary process for repeated or severe policy violations.'],
+  ['HITRUST-08.E-01', 'Role-Based Training Paths', 'medium', 'access_control', 'config', ['role based training', 'developer training', 'admin training'], policyCheckFiles, 'HITRUST CSF v11 - 08.e Role-Specific Training', 'Tailor training content to privileged, developer, and operations roles.'],
+  ['HITRUST-08.F-01', 'Contractor Security Controls', 'medium', 'access_control', 'config', ['contractor security', 'third party workforce', 'outsourced personnel'], policyCheckFiles, 'HITRUST CSF v11 - 08.f Third-Party Personnel', 'Apply workforce security controls consistently to contractors and vendors.'],
+  ['HITRUST-08.G-01', 'Termination Checklist', 'high', 'access_control', 'config', ['termination checklist', 'offboarding checklist', 'asset return'], policyCheckFiles, 'HITRUST CSF v11 - 08.g Termination', 'Use a termination checklist that includes access removal and asset recovery.'],
+  ['HITRUST-08.H-01', 'Privileged Personnel Attestation', 'medium', 'access_control', 'config', ['attestation', 'privileged user attestation', 'annual acknowledgement'], policyCheckFiles, 'HITRUST CSF v11 - 08.h Workforce Accountability', 'Require periodic attestations for privileged personnel.'],
+  ['HITRUST-08.I-01', 'Insider Risk Awareness', 'medium', 'audit_logging', 'config', ['insider risk', 'behavioral monitoring', 'report concerns'], policyCheckFiles, 'HITRUST CSF v11 - 08.i Insider Threat', 'Train staff on insider-risk indicators and reporting paths.'],
+  ['HITRUST-08.J-01', 'Manager Access Reviews', 'medium', 'access_control', 'config', ['manager review', 'line manager approval', 'access recertification'], policyCheckFiles, 'HITRUST CSF v11 - 08.j Management Oversight', 'Require manager review for access changes and recurring certifications.'],
+  ['HITRUST-08.K-01', 'Phishing Simulation Program', 'medium', 'access_control', 'config', ['phishing simulation', 'awareness campaign', 'security culture'], policyCheckFiles, 'HITRUST CSF v11 - 08.k Workforce Readiness', 'Run phishing simulations and track remediation for repeat failures.'],
+  ['HITRUST-08.L-01', 'Sanctions Screening for Sensitive Roles', 'low', 'access_control', 'config', ['sanctions screening', 'restricted party screening', 'sensitive role screening'], policyCheckFiles, 'HITRUST CSF v11 - 08.l Sensitive Roles', 'Screen workforce members in highly sensitive roles against required registries.'],
+  ['HITRUST-09.A-01', 'Facility Badge Logging', 'medium', 'audit_logging', 'config', ['badge log', 'badge reader', 'facility access log'], policyCheckFiles, 'HITRUST CSF v11 - 09.a Physical Access Monitoring', 'Log facility entry and exit events with badge or credential readers.'],
+  ['HITRUST-09.B-01', 'Visitor Management', 'medium', 'audit_logging', 'config', ['visitor log', 'visitor escort', 'guest access'], policyCheckFiles, 'HITRUST CSF v11 - 09.b Visitor Access', 'Maintain visitor sign-in records and escort requirements.'],
+  ['HITRUST-09.C-01', 'Server Room Controls', 'high', 'infrastructure', 'config', ['server room', 'restricted area', 'locked cage'], policyCheckFiles, 'HITRUST CSF v11 - 09.c Secure Areas', 'Restrict server rooms and secure areas with layered physical controls.'],
+  ['HITRUST-09.D-01', 'Environmental Monitoring', 'medium', 'infrastructure', 'config', ['temperature alert', 'humidity monitoring', 'water leak'], policyCheckFiles, 'HITRUST CSF v11 - 09.d Environmental Controls', 'Monitor environmental risks in data centers and critical facilities.'],
+  ['HITRUST-09.E-01', 'Power Protection and UPS', 'medium', 'infrastructure', 'config', ['ups', 'generator', 'power redundancy'], policyCheckFiles, 'HITRUST CSF v11 - 09.e Power Protection', 'Provide UPS and backup power for systems supporting regulated operations.'],
+  ['HITRUST-09.F-01', 'CCTV Retention for Secure Areas', 'low', 'audit_logging', 'config', ['cctv', 'surveillance retention', 'camera monitoring'], policyCheckFiles, 'HITRUST CSF v11 - 09.f Video Monitoring', 'Retain surveillance footage for secure areas and align retention with policy.'],
+  ['HITRUST-09.G-01', 'Media Disposal Program', 'medium', 'infrastructure', 'config', ['media destruction', 'secure shredding', 'certificate of destruction'], policyCheckFiles, 'HITRUST CSF v11 - 09.g Media Disposal', 'Document secure disposal for paper, disks, and retired hardware.'],
+  ['HITRUST-09.H-01', 'Asset Shipping Chain of Custody', 'medium', 'audit_logging', 'config', ['chain of custody', 'shipping custody', 'tamper evident'], policyCheckFiles, 'HITRUST CSF v11 - 09.h Asset Movement', 'Track custody for hardware shipments and returns.'],
+  ['HITRUST-09.I-01', 'Locked Rack Requirement', 'medium', 'infrastructure', 'config', ['locked rack', 'cabinet lock', 'tamper lock'], policyCheckFiles, 'HITRUST CSF v11 - 09.i Equipment Security', 'Use locked racks or cages for infrastructure hosting sensitive workloads.'],
+  ['HITRUST-09.J-01', 'Clean Desk and Clear Screen Policy', 'low', 'access_control', 'config', ['clean desk', 'clear screen', 'paper disposal'], policyCheckFiles, 'HITRUST CSF v11 - 09.j Workspace Hygiene', 'Require clean-desk and clear-screen controls in shared spaces.'],
+  ['HITRUST-09.K-01', 'Workstation Positioning Controls', 'low', 'access_control', 'config', ['privacy screen', 'screen positioning', 'shoulder surfing'], policyCheckFiles, 'HITRUST CSF v11 - 09.k Workstation Placement', 'Reduce visual exposure with workstation placement and privacy screens.'],
+  ['HITRUST-09.N-01', 'Badge Revocation Procedure', 'medium', 'access_control', 'config', ['badge revocation', 'physical access removal', 'credential retrieval'], policyCheckFiles, 'HITRUST CSF v11 - 09.n Credential Revocation', 'Revoke physical credentials as part of workforce offboarding.'],
+  ['HITRUST-09.O-01', 'Shipping Media Encryption', 'medium', 'encryption', 'config', ['encrypted shipment', 'hardware transport encryption', 'field service encryption'], policyCheckFiles, 'HITRUST CSF v11 - 09.o Media Transport', 'Encrypt data-bearing devices before transport or field service.'],
+  ['HITRUST-09.P-01', 'Tamper Detection for Critical Hardware', 'medium', 'infrastructure', 'config', ['tamper alert', 'tamper evident', 'chassis intrusion'], policyCheckFiles, 'HITRUST CSF v11 - 09.p Tamper Protection', 'Use tamper detection or seals for critical hardware assets.'],
+  ['HITRUST-09.Q-01', 'Emergency Contact Lists for Facilities', 'low', 'infrastructure', 'config', ['facility emergency contact', 'security desk contact', 'escalation roster'], policyCheckFiles, 'HITRUST CSF v11 - 09.q Facility Readiness', 'Maintain emergency and escalation contacts for physical sites.'],
+  ['HITRUST-09.R-01', 'Physical Key Inventory', 'low', 'access_control', 'config', ['key inventory', 'physical key issue', 'master key log'], policyCheckFiles, 'HITRUST CSF v11 - 09.r Key Control', 'Track issuance and return of physical keys for secure areas.'],
+  ['HITRUST-09.S-01', 'Critical Equipment Maintenance Logs', 'low', 'audit_logging', 'config', ['maintenance log', 'preventive maintenance', 'service ticket'], policyCheckFiles, 'HITRUST CSF v11 - 09.s Equipment Maintenance', 'Record maintenance activity for critical infrastructure assets and facilities controls.'],
+  ['HITRUST-09.T-01', 'Physical Incident Escalation', 'low', 'audit_logging', 'config', ['physical incident', 'facility incident', 'security desk escalation'], policyCheckFiles, 'HITRUST CSF v11 - 09.t Physical Incident Handling', 'Document how physical incidents are reported, escalated, and remediated.'],
+  ['HITRUST-10.A-01', 'Centralized Security Monitoring', 'high', 'audit_logging', 'import', ['@sentry', 'datadog', 'newrelic', 'prom-client'], null, 'HITRUST CSF v11 - 10.a Monitoring', 'Centralize health, security, and application monitoring for regulated services.'],
+  ['HITRUST-10.D-01', 'Vulnerability Management Workflow', 'high', 'infrastructure', 'config', ['vulnerability management', 'triage SLA', 'patch SLA'], ciCheckFiles, 'HITRUST CSF v11 - 10.d Vulnerability Management', 'Define vulnerability intake, triage, remediation, and exception workflows.'],
+  ['HITRUST-10.E-01', 'Malware Protection Controls', 'medium', 'infrastructure', 'config', ['malware protection', 'endpoint protection', 'antivirus'], policyCheckFiles, 'HITRUST CSF v11 - 10.e Malware Protection', 'Deploy anti-malware or endpoint protection on managed infrastructure.'],
+  ['HITRUST-10.F-01', 'Configuration Drift Detection', 'medium', 'infrastructure', 'config', ['config drift', 'desired state', 'drift detection'], infraCheckFiles, 'HITRUST CSF v11 - 10.f Change Detection', 'Detect drift from approved infrastructure baselines and alert owners.'],
+  ['HITRUST-10.G-01', 'Infrastructure as Code Reviews', 'medium', 'infrastructure', 'config', ['terraform validate', 'iac review', 'opa policy'], infraCheckFiles, 'HITRUST CSF v11 - 10.g Infrastructure Management', 'Review infrastructure changes with policy checks before deployment.'],
+  ['HITRUST-10.H-01', 'Container Image Scanning', 'medium', 'infrastructure', 'config', ['trivy', 'grype', 'anchore', 'container scan'], ciCheckFiles, 'HITRUST CSF v11 - 10.h Secure Operations', 'Scan container images for vulnerabilities and misconfigurations before release.'],
+  ['HITRUST-10.I-01', 'Web Application Firewall Coverage', 'high', 'infrastructure', 'config', ['waf', 'cloudflare', 'aws waf', 'rate based rule'], infraCheckFiles, 'HITRUST CSF v11 - 10.i Perimeter Protection', 'Deploy a web application firewall in front of public healthcare APIs.'],
+  ['HITRUST-10.J-01', 'Network Segmentation Enforcement', 'high', 'infrastructure', 'config', ['network segmentation', 'security group', 'network policy'], infraCheckFiles, 'HITRUST CSF v11 - 10.j Network Isolation', 'Segment sensitive services and data stores away from public entry points.'],
+  ['HITRUST-10.K-01', 'DNS Security Controls', 'medium', 'infrastructure', 'config', ['dnssec', 'split horizon dns', 'internal dns'], infraCheckFiles, 'HITRUST CSF v11 - 10.k Naming Services', 'Protect critical DNS records and internal resolution paths.'],
+  ['HITRUST-10.L-01', 'Email Security Gateways', 'medium', 'infrastructure', 'config', ['dkim', 'spf', 'dmarc', 'email gateway'], policyCheckFiles, 'HITRUST CSF v11 - 10.l Messaging Security', 'Enforce email authentication and gateway protections for healthcare domains.'],
+  ['HITRUST-10.M-01', 'Data Loss Prevention Controls', 'medium', 'infrastructure', 'config', ['dlp', 'data loss prevention', 'content inspection'], policyCheckFiles, 'HITRUST CSF v11 - 10.m Data Loss Prevention', 'Implement DLP controls for outbound channels that may carry PHI.'],
+  ['HITRUST-10.N-01', 'Proxy and Egress Filtering', 'medium', 'infrastructure', 'config', ['egress filter', 'web proxy', 'outbound allowlist'], infraCheckFiles, 'HITRUST CSF v11 - 10.n Egress Management', 'Control outbound destinations from services that handle sensitive data.'],
+  ['HITRUST-10.O-01', 'Queue and Event Encryption', 'high', 'encryption', 'config', ['queue encryption', 'kms key', 'topic encryption'], infraCheckFiles, 'HITRUST CSF v11 - 10.o Messaging Protection', 'Encrypt queues, topics, and event streams that may carry regulated data.'],
+  ['HITRUST-10.P-01', 'Backup Verification Workflow', 'medium', 'infrastructure', 'config', ['backup verification', 'restore drill', 'backup integrity'], infraCheckFiles, 'HITRUST CSF v11 - 10.p Backup Validation', 'Verify backup integrity with recurring restore tests.'],
+  ['HITRUST-10.Q-01', 'Observability for Critical Paths', 'medium', 'audit_logging', 'config', ['service level objective', 'latency alert', 'availability alert'], policyCheckFiles, 'HITRUST CSF v11 - 10.q Operational Visibility', 'Define alerts for regulated transaction paths and patient-critical services.'],
+  ['HITRUST-10.R-01', 'Dependency Hygiene Program', 'medium', 'infrastructure', 'config', ['dependabot', 'renovate', 'dependency update'], ciCheckFiles, 'HITRUST CSF v11 - 10.r Third-Party Components', 'Automate dependency updates and triage vulnerable packages promptly.'],
+  ['HITRUST-10.S-01', 'Scheduled Job Accountability', 'low', 'audit_logging', 'config', ['cron audit', 'scheduled job owner', 'job inventory'], policyCheckFiles, 'HITRUST CSF v11 - 10.s Job Scheduling', 'Track owners and logs for scheduled jobs that touch sensitive systems.'],
+  ['HITRUST-10.T-01', 'Immutable Infrastructure Practices', 'medium', 'infrastructure', 'config', ['immutable image', 'golden image', 'blue green deployment'], infraCheckFiles, 'HITRUST CSF v11 - 10.t Operational Consistency', 'Prefer immutable deployment patterns over ad hoc server mutation.'],
+  ['HITRUST-10.U-01', 'Secrets Scanning in Delivery Pipelines', 'high', 'encryption', 'config', ['gitleaks', 'trufflehog', 'secret scanning'], ciCheckFiles, 'HITRUST CSF v11 - 10.u Secret Leakage Prevention', 'Scan source control and CI artifacts for leaked credentials.'],
+  ['HITRUST-10.V-01', 'Patch Window Definition', 'medium', 'infrastructure', 'config', ['patch window', 'maintenance window', 'emergency patch'], policyCheckFiles, 'HITRUST CSF v11 - 10.v Change Scheduling', 'Define patch windows and emergency patch procedures for critical services.'],
+  ['HITRUST-10.W-01', 'Operational Runbook Library', 'medium', 'audit_logging', 'config', ['runbook', 'operational playbook', 'service handbook'], policyCheckFiles, 'HITRUST CSF v11 - 10.w Runbooks', 'Maintain runbooks for failure modes, maintenance, and regulated operations.'],
+  ['HITRUST-10.X-01', 'Internal Service Mesh Policy', 'low', 'infrastructure', 'config', ['service mesh', 'mtls policy', 'east west traffic'], infraCheckFiles, 'HITRUST CSF v11 - 10.x Internal Service Security', 'Protect east-west traffic with authenticated service-to-service controls where appropriate.'],
+  ['HITRUST-10.Y-01', 'Job Ownership and Escalation', 'low', 'audit_logging', 'config', ['job owner', 'batch escalation', 'scheduled job contact'], policyCheckFiles, 'HITRUST CSF v11 - 10.y Operational Accountability', 'Assign owners and escalation paths for recurring jobs and asynchronous workloads.'],
+  ['HITRUST-10.Z-01', 'Operational Dependency Reviews', 'low', 'infrastructure', 'config', ['operational dependency', 'external dependency review', 'critical service review'], policyCheckFiles, 'HITRUST CSF v11 - 10.z Operational Dependencies', 'Review operational dependencies that could interrupt patient or business workflows.'],
+  ['HITRUST-11.B-01', 'Secure Code Review Requirement', 'high', 'infrastructure', 'config', ['code review', 'pull request approval', 'security review'], ciCheckFiles, 'HITRUST CSF v11 - 11.b Secure Development', 'Require peer review and security review for sensitive code changes.'],
+  ['HITRUST-11.C-01', 'Static Analysis Coverage', 'medium', 'infrastructure', 'config', ['eslint', 'semgrep', 'codeql', 'sast'], ciCheckFiles, 'HITRUST CSF v11 - 11.c Static Analysis', 'Run static analysis and policy checks before merging application changes.'],
+  ['HITRUST-11.D-01', 'Dependency Review Gates', 'medium', 'infrastructure', 'config', ['dependency review', 'snyk test', 'npm audit'], ciCheckFiles, 'HITRUST CSF v11 - 11.d Build Controls', 'Gate releases on dependency and vulnerability review.'],
+  ['HITRUST-11.E-01', 'Threat Modeling Practice', 'medium', 'ai_governance', 'config', ['threat model', 'abuse case', 'trust boundary'], policyCheckFiles, 'HITRUST CSF v11 - 11.e Threat Modeling', 'Maintain threat models for sensitive workflows and system boundaries.'],
+  ['HITRUST-11.F-01', 'SBOM Generation', 'medium', 'infrastructure', 'config', ['sbom', 'cyclonedx', 'spdx'], ciCheckFiles, 'HITRUST CSF v11 - 11.f Software Transparency', 'Generate SBOMs for production artifacts and major releases.'],
+  ['HITRUST-11.G-01', 'Artifact Signing', 'high', 'encryption', 'config', ['cosign', 'artifact signing', 'provenance'], ciCheckFiles, 'HITRUST CSF v11 - 11.g Supply Chain Integrity', 'Sign deployment artifacts and retain provenance metadata.'],
+  ['HITRUST-11.H-01', 'Infrastructure Policy Testing', 'medium', 'infrastructure', 'config', ['opa', 'conftest', 'terraform plan'], infraCheckFiles, 'HITRUST CSF v11 - 11.h Infrastructure Validation', 'Test infrastructure changes against security policy before deployment.'],
+  ['HITRUST-11.I-01', 'Secrets in CI Protection', 'high', 'encryption', 'config', ['masked secret', 'environment secret', 'secret context'], ciCheckFiles, 'HITRUST CSF v11 - 11.i Build Secrets', 'Protect CI secrets with masking, scoping, and protected environments.'],
+  ['HITRUST-11.J-01', 'Release Approval Workflow', 'medium', 'audit_logging', 'config', ['release approval', 'change advisory', 'deployment approval'], ciCheckFiles, 'HITRUST CSF v11 - 11.j Release Management', 'Require approvals for production deployments that affect regulated services.'],
+  ['HITRUST-11.K-01', 'Integration Test Coverage for PHI Paths', 'medium', 'phi_protection', 'config', ['integration test', 'privacy regression', 'redaction test'], codeCheckFiles, 'HITRUST CSF v11 - 11.k Quality Assurance', 'Test redaction, authorization, and privacy-critical flows in integration suites.'],
+  ['HITRUST-11.L-01', 'Schema Validation for Public APIs', 'medium', 'infrastructure', 'import', ['openapi', 'swagger', 'zod'], null, 'HITRUST CSF v11 - 11.l Interface Design', 'Validate request and response schemas for public healthcare APIs.'],
+  ['HITRUST-11.M-01', 'Secure Serialization Controls', 'high', 'infrastructure', 'config', ['safe serialization', 'yaml.safeLoad', 'deserialization policy'], codeCheckFiles, 'HITRUST CSF v11 - 11.m Serialization Safety', 'Use safe parsing and serialization libraries for untrusted data.'],
+  ['HITRUST-11.N-01', 'SSRF Egress Restrictions', 'high', 'infrastructure', 'config', ['metadata ip deny', 'ssrf protection', 'egress allowlist'], infraCheckFiles, 'HITRUST CSF v11 - 11.n Server-Side Request Protections', 'Restrict server-side outbound traffic and block metadata services where possible.'],
+  ['HITRUST-11.O-01', 'Privacy Design Review', 'medium', 'ai_governance', 'config', ['privacy review', 'data minimization review', 'privacy by design'], policyCheckFiles, 'HITRUST CSF v11 - 11.o Privacy by Design', 'Review new features for data minimization and privacy impacts before release.'],
+  ['HITRUST-11.P-01', 'Penetration Testing Cadence', 'medium', 'infrastructure', 'config', ['penetration test', 'pentest', 'security assessment'], policyCheckFiles, 'HITRUST CSF v11 - 11.p Security Validation', 'Schedule penetration testing for internet-facing and regulated services.'],
+  ['HITRUST-11.Q-01', 'Data Masking in Lower Environments', 'high', 'phi_protection', 'config', ['data masking', 'synthetic data', 'non production phi'], policyCheckFiles, 'HITRUST CSF v11 - 11.q Non-Production Data', 'Mask or synthesize PHI before data reaches non-production environments.'],
+  ['HITRUST-11.R-01', 'Schema Migration Approval', 'medium', 'audit_logging', 'config', ['migration approval', 'database change review', 'ddl review'], ciCheckFiles, 'HITRUST CSF v11 - 11.r Data Layer Change Control', 'Review and approve schema migrations that affect regulated data stores.'],
+  ['HITRUST-11.S-01', 'Secure Coding Standards', 'medium', 'infrastructure', 'config', ['secure coding standard', 'owasp asvs', 'development standard'], policyCheckFiles, 'HITRUST CSF v11 - 11.s Development Standards', 'Maintain coding standards aligned to secure development practices.'],
+  ['HITRUST-11.T-01', 'Release Rollback Readiness', 'medium', 'infrastructure', 'config', ['rollback plan', 'canary rollback', 'release recovery'], policyCheckFiles, 'HITRUST CSF v11 - 11.t Deployment Resilience', 'Document rollback plans and safe deployment patterns for critical releases.'],
+  ['HITRUST-11.U-01', 'Production Access to Source Control', 'medium', 'access_control', 'config', ['production deploy role', 'scoped repository access', 'release engineer'], policyCheckFiles, 'HITRUST CSF v11 - 11.u Release Permissions', 'Separate production deployment rights from broad repository administration where possible.'],
+  ['HITRUST-11.V-01', 'Developer Sandbox Isolation', 'low', 'phi_protection', 'config', ['sandbox environment', 'developer sandbox', 'non production restriction'], policyCheckFiles, 'HITRUST CSF v11 - 11.v Sandbox Controls', 'Keep sandbox environments isolated from live data, credentials, and production networks.'],
+  ['HITRUST-12.A-01', 'Incident Response Plan', 'high', 'audit_logging', 'config', ['incident response plan', 'security incident', 'runbook'], policyCheckFiles, 'HITRUST CSF v11 - 12.a Incident Management', 'Maintain an incident response plan with clear roles and escalation.'],
+  ['HITRUST-12.B-01', 'Severity Classification Matrix', 'medium', 'audit_logging', 'config', ['severity matrix', 'incident severity', 'priority classification'], policyCheckFiles, 'HITRUST CSF v11 - 12.b Incident Prioritization', 'Classify incidents consistently with severity and impact criteria.'],
+  ['HITRUST-12.C-01', 'On-Call Escalation Coverage', 'medium', 'audit_logging', 'config', ['on call', 'pagerduty', 'opsgenie'], policyCheckFiles, 'HITRUST CSF v11 - 12.c Response Coordination', 'Ensure on-call coverage and escalation paths for regulated services.'],
+  ['HITRUST-12.D-01', 'Evidence Preservation Procedure', 'medium', 'audit_logging', 'config', ['forensics', 'evidence preservation', 'chain of custody'], policyCheckFiles, 'HITRUST CSF v11 - 12.d Investigations', 'Preserve logs and evidence in a forensics-friendly manner during investigations.'],
+  ['HITRUST-12.E-01', 'Breach Notification Workflow', 'high', 'audit_logging', 'config', ['breach notification', 'regulatory notification', 'customer communication'], policyCheckFiles, 'HITRUST CSF v11 - 12.e Notification', 'Document notification thresholds and communication workflows for breaches.'],
+  ['HITRUST-12.F-01', 'Post-Incident Review Practice', 'medium', 'audit_logging', 'config', ['postmortem', 'incident review', 'corrective action'], policyCheckFiles, 'HITRUST CSF v11 - 12.f Lessons Learned', 'Run blameless post-incident reviews with tracked remediation actions.'],
+  ['HITRUST-12.G-01', 'Tabletop Exercise Cadence', 'medium', 'audit_logging', 'config', ['tabletop exercise', 'incident simulation', 'crisis rehearsal'], policyCheckFiles, 'HITRUST CSF v11 - 12.g Preparedness', 'Exercise incident response plans regularly with realistic scenarios.'],
+  ['HITRUST-12.H-01', 'Root Cause Tracking', 'medium', 'audit_logging', 'config', ['root cause analysis', 'corrective action', 'problem management'], policyCheckFiles, 'HITRUST CSF v11 - 12.h Problem Management', 'Track root causes and corrective actions until closure.'],
+  ['HITRUST-12.I-01', 'Legal and Privacy Escalation', 'medium', 'audit_logging', 'config', ['legal escalation', 'privacy office', 'compliance contact'], policyCheckFiles, 'HITRUST CSF v11 - 12.i Stakeholder Coordination', 'Define how legal, privacy, and compliance teams are engaged during incidents.'],
+  ['HITRUST-12.J-01', 'Threat Intelligence Intake', 'low', 'audit_logging', 'config', ['threat intelligence', 'ioc feed', 'indicator intake'], policyCheckFiles, 'HITRUST CSF v11 - 12.j Intelligence', 'Incorporate relevant healthcare threat intelligence into monitoring workflows.'],
+  ['HITRUST-12.K-01', 'Incident Metrics and Reporting', 'low', 'audit_logging', 'config', ['incident metrics', 'mttr', 'security dashboard'], policyCheckFiles, 'HITRUST CSF v11 - 12.k Reporting', 'Track incident metrics and report trends to leadership.'],
+  ['HITRUST-12.L-01', 'Customer Communications Templates', 'low', 'audit_logging', 'config', ['incident communication template', 'customer notice', 'status page'], policyCheckFiles, 'HITRUST CSF v11 - 12.l Communications', 'Prepare templates for internal and external incident communications.'],
+  ['HITRUST-12.M-01', 'Law Enforcement Contact Procedure', 'low', 'audit_logging', 'config', ['law enforcement contact', 'regulator contact', 'external escalation'], policyCheckFiles, 'HITRUST CSF v11 - 12.m External Coordination', 'Document when and how law enforcement or regulators are engaged.'],
+  ['HITRUST-12.N-01', 'Secure Artifact Collection', 'medium', 'audit_logging', 'config', ['artifact collection', 'snapshot forensics', 'evidence storage'], policyCheckFiles, 'HITRUST CSF v11 - 12.n Investigative Readiness', 'Collect and secure investigative artifacts without contaminating evidence.'],
+  ['HITRUST-12.O-01', 'Incident Communication Bridge', 'low', 'audit_logging', 'config', ['war room', 'incident bridge', 'coordination channel'], policyCheckFiles, 'HITRUST CSF v11 - 12.o Coordination Channels', 'Define coordination channels for active incident response.'],
+  ['HITRUST-12.P-01', 'Containment Playbooks', 'medium', 'audit_logging', 'config', ['containment playbook', 'credential rotation playbook', 'isolation playbook'], policyCheckFiles, 'HITRUST CSF v11 - 12.p Containment', 'Maintain playbooks for credential compromise, malware, and exposure events.'],
+  ['HITRUST-13.A-01', 'Business Continuity Plan', 'high', 'infrastructure', 'config', ['business continuity plan', 'continuity strategy', 'service recovery'], policyCheckFiles, 'HITRUST CSF v11 - 13.a Business Continuity', 'Maintain a business continuity plan for critical healthcare services.'],
+  ['HITRUST-13.B-01', 'Disaster Recovery Testing', 'high', 'infrastructure', 'config', ['disaster recovery test', 'failover test', 'dr exercise'], policyCheckFiles, 'HITRUST CSF v11 - 13.b Disaster Recovery', 'Test failover and disaster recovery procedures on a recurring schedule.'],
+  ['HITRUST-13.C-01', 'RTO and RPO Targets', 'medium', 'infrastructure', 'config', ['rto', 'rpo', 'recovery objective'], policyCheckFiles, 'HITRUST CSF v11 - 13.c Recovery Objectives', 'Define and review recovery time and recovery point objectives for regulated services.'],
+  ['HITRUST-13.D-01', 'Immutable Backup Storage', 'high', 'infrastructure', 'config', ['immutable backup', 'object lock', 'write once read many'], infraCheckFiles, 'HITRUST CSF v11 - 13.d Backup Resilience', 'Use immutable or append-only backup storage for critical datasets.'],
+  ['HITRUST-13.E-01', 'Multi-Region Recovery Design', 'medium', 'infrastructure', 'config', ['multi region', 'secondary region', 'cross region replication'], infraCheckFiles, 'HITRUST CSF v11 - 13.e Geographic Redundancy', 'Replicate critical workloads or data to alternate regions when justified by impact.'],
+  ['HITRUST-13.F-01', 'Dependency Inventory for Recovery', 'medium', 'infrastructure', 'config', ['dependency inventory', 'critical supplier', 'service map'], policyCheckFiles, 'HITRUST CSF v11 - 13.f Recovery Dependencies', 'Track dependencies needed to recover regulated business processes.'],
+  ['HITRUST-13.G-01', 'Third-Party Continuity Reviews', 'medium', 'infrastructure', 'config', ['vendor continuity', 'supplier resilience', 'third party dr'], policyCheckFiles, 'HITRUST CSF v11 - 13.g Third-Party Continuity', 'Review continuity commitments from key suppliers and platform providers.'],
+  ['HITRUST-13.H-01', 'Emergency Contact Trees', 'low', 'infrastructure', 'config', ['emergency contact tree', 'continuity roster', 'call tree'], policyCheckFiles, 'HITRUST CSF v11 - 13.h Communications', 'Maintain contact trees for recovery coordinators and service owners.'],
+  ['HITRUST-13.I-01', 'Continuity Training', 'low', 'infrastructure', 'config', ['continuity training', 'recovery rehearsal', 'bc training'], policyCheckFiles, 'HITRUST CSF v11 - 13.i Preparedness', 'Train service owners and responders on continuity procedures.'],
+  ['HITRUST-13.J-01', 'Backup Ownership and Monitoring', 'medium', 'audit_logging', 'config', ['backup owner', 'backup alert', 'failed backup'], infraCheckFiles, 'HITRUST CSF v11 - 13.j Backup Governance', 'Assign ownership and alerting for failed or degraded backups.'],
+  ['HITRUST-13.K-01', 'Recovery Workspace Readiness', 'low', 'infrastructure', 'config', ['alternate workspace', 'remote continuity', 'work area recovery'], policyCheckFiles, 'HITRUST CSF v11 - 13.k Workforce Continuity', 'Prepare alternate workspace and remote continuity arrangements for key teams.'],
+  ['HITRUST-13.L-01', 'Business Impact Analysis', 'medium', 'infrastructure', 'config', ['business impact analysis', 'critical process ranking', 'impact tolerance'], policyCheckFiles, 'HITRUST CSF v11 - 13.l Impact Analysis', 'Review business impact and recovery priorities for regulated services.'],
+  ['HITRUST-13.M-01', 'Manual Workaround Procedures', 'low', 'infrastructure', 'config', ['manual workaround', 'paper fallback', 'downtime procedure'], policyCheckFiles, 'HITRUST CSF v11 - 13.m Operational Fallback', 'Document temporary workarounds when automated systems are unavailable.'],
+  ['HITRUST-13.N-01', 'Continuity Metrics Review', 'low', 'audit_logging', 'config', ['continuity metrics', 'recovery scorecard', 'exercise metrics'], policyCheckFiles, 'HITRUST CSF v11 - 13.n Continual Improvement', 'Measure continuity readiness and exercise outcomes over time.'],
+  ['HITRUST-13.O-01', 'Recovery Communications Templates', 'low', 'audit_logging', 'config', ['recovery communication', 'status template', 'downtime notice'], policyCheckFiles, 'HITRUST CSF v11 - 13.o Continuity Communications', 'Prepare communication templates for service disruptions and recovery events.'],
+  ['HITRUST-13.P-01', 'Immutable Runbook Repository', 'low', 'infrastructure', 'config', ['runbook backup', 'offline runbook', 'continuity documentation'], policyCheckFiles, 'HITRUST CSF v11 - 13.p Documentation Availability', 'Store continuity documentation in locations that remain available during outages.'],
+  ['HITRUST-13.Q-01', 'Critical Supplier Failover Options', 'medium', 'infrastructure', 'config', ['secondary supplier', 'failover vendor', 'exit plan'], policyCheckFiles, 'HITRUST CSF v11 - 13.q Supplier Resilience', 'Plan alternatives when critical suppliers or cloud regions are unavailable.'],
+];
+
+const hitrustGenerated = hitrustThemes.map(([ruleId, title, severity, category, mode, values, checkFiles, citation, remediation]) => {
+  const description = `${title} coverage for the HITRUST CSF control objective.`;
+  if (mode === 'import') {
+    return importRule(ruleId, title, description, severity, category, citation, remediation, values);
+  }
+  return configRule(ruleId, title, description, severity, category, citation, remediation, values, checkFiles ?? policyCheckFiles);
+});
+
+const soc2Base = [
+  negativeRule('SOC2-CC6.1-001', 'Unencrypted Data Transmission', 'Detects unencrypted HTTP usage in code or configuration.', 'critical', 'encryption', 'SOC2 CC6.1 - Logical and Physical Access Controls', 'Use HTTPS for all data transmission and enforce modern TLS.', {
+    regex: 'http://(?!localhost|127\\.0\\.0\\.1|0\\.0\\.0\\.0)',
+    exclude: ['*.test.*', '*.md'],
+  }),
+  codeRule('SOC2-CC6.1-002', 'Hardcoded Credentials', 'Detects hardcoded credentials and encryption keys.', 'critical', 'encryption', 'SOC2 CC6.1 - Logical and Physical Access Controls', 'Use a secrets manager or environment variables for all credentials.', {
+    variableNames: ['secretKey', 'secret_key', 'encryptionKey', 'encryption_key', 'apiKey', 'api_key', 'privateKey', 'private_key', 'password', 'passwd'],
+    checkAssignment: true,
+    excludeEnvAccess: true,
+  }),
+  semanticRule('SOC2-CC6.6-001', 'Missing Authentication', 'Checks API routes for authentication middleware.', 'critical', 'access_control', 'SOC2 CC6.6 - System Boundaries', 'Add authentication middleware to public-facing routes.', {
+    routePatterns: ['app.get', 'app.post', 'app.put', 'app.delete', 'router.get', 'router.post'],
+    requireMiddleware: ['auth', 'authenticate', 'requireAuth', 'isAuthenticated', 'verifyToken'],
+  }),
+  importRule('SOC2-CC6.3-001', 'Missing MFA', 'Checks for multi-factor authentication implementation.', 'high', 'access_control', 'SOC2 CC6.3 - Role-Based Access', 'Implement MFA for administrative and PHI-bearing workflows.', ['totp', 'mfa', 'two-factor', 'otplib', 'speakeasy', 'webauthn', '@auth0', 'passport', 'next-auth', '@clerk']),
+  importRule('SOC2-CC7.2-001', 'Missing Monitoring', 'Checks for centralized monitoring and alerting dependencies.', 'high', 'audit_logging', 'SOC2 CC7.2 - System Monitoring', 'Implement centralized logging and monitoring with alerting.', ['audit', 'audit-log', 'winston', 'pino', 'bunyan', 'log4js', '@sentry', 'datadog', 'morgan']),
+  semanticRule('SOC2-CC7.2-002', 'PHI in Logs', 'Detects PHI flowing into log statements.', 'critical', 'phi_protection', 'SOC2 CC7.2 - System Monitoring (Healthcare)', 'Remove PHI from log statements and use tokenized identifiers.', {
+    nodeTypes: ['call_expression'],
+    functionNames: ['console.log', 'console.error', 'console.warn', 'logger.info', 'logger.warn', 'logger.error', 'print', 'logging.info', 'logging.error'],
+    checkArguments: true,
+  }),
+  configRule('SOC2-CC8.1-001', 'Missing Vulnerability Scanning', 'Checks for vulnerability scanning in the development pipeline.', 'medium', 'infrastructure', 'SOC2 CC8.1 - Change Management', 'Integrate vulnerability scanning such as Snyk, Dependabot, or Trivy into CI/CD.', ['snyk', 'dependabot', 'trivy', 'npm audit', 'safety check'], ciCheckFiles, false),
+  importRule('SOC2-CC6.7-001', 'Missing Rate Limiting', 'Checks for rate limiting support in the application stack.', 'medium', 'infrastructure', 'SOC2 CC6.7 - Data Flow Restrictions', 'Implement rate limiting on public API endpoints.', ['rate-limit', 'express-rate-limit', 'ratelimit', 'throttle', 'bottleneck']),
+  codeRule('SOC2-CC3.2-001', 'Insecure Deserialization', 'Detects dynamic code execution and unsafe deserialization primitives.', 'critical', 'infrastructure', 'SOC2 CC3.2 - Risk Assessment of Technology', 'Avoid eval and unsafe deserialization APIs. Prefer safe parsing and strict schemas.', {
+    regex: String.raw`\beval\s*\(|yaml\.load\s*\(|setTimeout\s*\(.*?,\s*["']`,
+    excludePatterns: [],
+  }),
+  importRule('SOC2-CC5.2-001', 'Missing Input Sanitization', 'Checks for sanitization tooling in the codebase.', 'high', 'infrastructure', 'SOC2 CC5.2 - Control Activities Mitigation', 'Implement sanitization libraries before rendering or storing untrusted input.', ['dompurify', 'xss-clean', 'sanitize-html', 'escape-html']),
+  codeRule('SOC2-CC4.1-001', 'Exposed Stack Trace', 'Detects stack traces being sent in API responses.', 'high', 'audit_logging', 'SOC2 CC4.1 - Monitoring Activities', 'Do not return stack traces in production responses.', {
+    regex: 'err\\.stack|error\\.stack',
+    excludePatterns: ['console', 'logger'],
+  }),
+  codeRule('SOC2-C1.1-001', 'Insecure Cookie Attributes', 'Detects cookies missing secure attributes.', 'high', 'encryption', 'SOC2 C1.1 - Confidentiality', 'Always set Secure, HttpOnly, and SameSite for session cookies.', {
+    regex: 'res\\.cookie\\(|cookies\\.set\\(',
+    excludePatterns: ['secure\\s*:\\s*true', 'httpOnly\\s*:\\s*true', 'sameSite\\s*:'],
+  }),
+  importRule('SOC2-PI1.2-001', 'Data Integrity Check Missing', 'Checks for checksum or hashing support for data transfers.', 'medium', 'infrastructure', 'SOC2 PI1.2 - Processing Integrity', 'Use checksums or integrity validation for uploads and data transfers.', ['crypto', 'checksum', 'hasha', 'md5-file'], false),
+];
+
+const soc2Themes = [
+  ['SOC2-CC1.1-001', 'Executive Security Accountability', 'medium', 'audit_logging', 'config', ['security owner', 'executive sponsor', 'security leadership'], policyCheckFiles, 'SOC2 CC1.1 - Control Environment', 'Define executive accountability for security and privacy outcomes.'],
+  ['SOC2-CC1.2-001', 'Security Policy Governance', 'medium', 'audit_logging', 'config', ['security policy', 'policy review', 'policy exception'], policyCheckFiles, 'SOC2 CC1.2 - Governance', 'Maintain and review security policies on a recurring schedule.'],
+  ['SOC2-CC1.3-001', 'Ethics and Conduct Program', 'low', 'audit_logging', 'config', ['code of conduct', 'ethics policy', 'disciplinary policy'], policyCheckFiles, 'SOC2 CC1.3 - Integrity and Ethics', 'Document ethics, conduct, and escalation expectations for the workforce.'],
+  ['SOC2-CC1.4-001', 'Workforce Security Responsibilities', 'low', 'access_control', 'config', ['security responsibilities', 'role accountability', 'ownership matrix'], policyCheckFiles, 'SOC2 CC1.4 - Workforce Accountability', 'Assign clear security responsibilities across engineering and operations teams.'],
+  ['SOC2-CC2.1-001', 'Security Communication Plan', 'low', 'audit_logging', 'config', ['security communication', 'incident communication', 'stakeholder update'], policyCheckFiles, 'SOC2 CC2.1 - Communication and Information', 'Define how security updates and incidents are communicated internally and externally.'],
+  ['SOC2-CC2.2-001', 'Policy Exception Workflow', 'low', 'audit_logging', 'config', ['policy exception', 'risk acceptance', 'compensating control'], policyCheckFiles, 'SOC2 CC2.2 - Information Flow', 'Track policy exceptions, approvals, and review dates.'],
+  ['SOC2-CC2.3-001', 'Control Inventory', 'medium', 'audit_logging', 'config', ['control inventory', 'control catalog', 'ownership register'], policyCheckFiles, 'SOC2 CC2.3 - Control Inventory', 'Maintain an inventory of implemented controls and assigned owners.'],
+  ['SOC2-CC2.4-001', 'Third-Party Communication Process', 'low', 'audit_logging', 'config', ['vendor communication', 'shared responsibility', 'security contact'], policyCheckFiles, 'SOC2 CC2.4 - External Communication', 'Define communication channels with vendors and critical service providers.'],
+  ['SOC2-CC3.1-001', 'Risk Register Maintenance', 'medium', 'audit_logging', 'config', ['risk register', 'risk owner', 'risk treatment'], policyCheckFiles, 'SOC2 CC3.1 - Risk Identification', 'Maintain a living risk register with owners, impacts, and mitigations.'],
+  ['SOC2-CC3.3-001', 'Threat Modeling Cadence', 'medium', 'ai_governance', 'config', ['threat model', 'abuse case', 'attack path'], policyCheckFiles, 'SOC2 CC3.3 - Threat Analysis', 'Review application threat models regularly and during major architecture changes.'],
+  ['SOC2-CC3.4-001', 'Vendor Risk Assessment', 'medium', 'audit_logging', 'config', ['vendor risk assessment', 'third party risk', 'supplier review'], policyCheckFiles, 'SOC2 CC3.4 - External Risks', 'Assess the security posture of critical suppliers and partners.'],
+  ['SOC2-CC3.5-001', 'Privacy Impact Assessment', 'medium', 'ai_governance', 'config', ['privacy impact assessment', 'pia', 'data protection impact'], policyCheckFiles, 'SOC2 CC3.5 - Change in Risk', 'Perform privacy impact assessments for changes involving personal or health data.'],
+  ['SOC2-CC4.2-001', 'Anomaly Detection Alerts', 'medium', 'audit_logging', 'config', ['anomaly detection', 'behavioral alert', 'threshold alert'], policyCheckFiles, 'SOC2 CC4.2 - Monitoring Activities', 'Define alerts for anomalous behavior across critical systems.'],
+  ['SOC2-CC4.3-001', 'Operational Dashboarding', 'low', 'audit_logging', 'config', ['operational dashboard', 'security dashboard', 'service health'], policyCheckFiles, 'SOC2 CC4.3 - Monitoring Visibility', 'Provide dashboards for security health, incidents, and control status.'],
+  ['SOC2-CC4.4-001', 'Metric Review Cadence', 'low', 'audit_logging', 'config', ['metric review', 'security metrics', 'leadership review'], policyCheckFiles, 'SOC2 CC4.4 - Review and Follow Up', 'Review key operational and security metrics with accountable stakeholders.'],
+  ['SOC2-CC4.5-001', 'Root Cause Follow-Up', 'medium', 'audit_logging', 'config', ['root cause analysis', 'corrective action', 'follow up'], policyCheckFiles, 'SOC2 CC4.5 - Corrective Action', 'Track corrective actions to completion after incidents and control failures.'],
+  ['SOC2-CC5.1-001', 'Secure Change Approval', 'medium', 'audit_logging', 'config', ['change approval', 'deployment approval', 'release gate'], ciCheckFiles, 'SOC2 CC5.1 - Control Activities', 'Require documented approvals for production changes.'],
+  ['SOC2-CC5.3-001', 'Secrets Scanning in CI', 'high', 'encryption', 'config', ['gitleaks', 'trufflehog', 'secret scanning'], ciCheckFiles, 'SOC2 CC5.3 - Technology Controls', 'Scan source control and CI artifacts for leaked credentials.'],
+  ['SOC2-CC5.4-001', 'Branch Protection Standards', 'medium', 'audit_logging', 'config', ['branch protection', 'required review', 'protected branch'], ciCheckFiles, 'SOC2 CC5.4 - Review Controls', 'Protect release branches with reviews and status checks.'],
+  ['SOC2-CC5.5-001', 'Artifact Provenance', 'medium', 'encryption', 'config', ['artifact signing', 'provenance', 'cosign'], ciCheckFiles, 'SOC2 CC5.5 - Build Integrity', 'Sign build artifacts and record provenance metadata.'],
+  ['SOC2-CC5.6-001', 'Infrastructure Policy Checks', 'medium', 'infrastructure', 'config', ['opa', 'conftest', 'terraform validate'], infraCheckFiles, 'SOC2 CC5.6 - Infrastructure Controls', 'Validate infrastructure changes against policy before deployment.'],
+  ['SOC2-CC6.2-001', 'Privileged Access Reviews', 'high', 'access_control', 'config', ['privileged access review', 'admin access review', 'quarterly certification'], policyCheckFiles, 'SOC2 CC6.2 - Access Governance', 'Review privileged access regularly and remove unnecessary entitlements.'],
+  ['SOC2-CC6.4-001', 'Conditional Access Policies', 'medium', 'access_control', 'config', ['conditional access', 'device trust', 'location based access'], policyCheckFiles, 'SOC2 CC6.4 - Access Restrictions', 'Use context-aware access decisions for sensitive resources.'],
+  ['SOC2-CC6.5-001', 'Dormant Account Disablement', 'medium', 'access_control', 'config', ['inactive account', 'dormant account', 'disable dormant'], policyCheckFiles, 'SOC2 CC6.5 - Account Lifecycle', 'Disable dormant accounts on a defined schedule.'],
+  ['SOC2-CC6.8-001', 'Session Revocation Support', 'medium', 'access_control', 'config', ['session revocation', 'token revocation', 'logout all sessions'], policyCheckFiles, 'SOC2 CC6.8 - Session Controls', 'Provide revocation paths for compromised sessions and tokens.'],
+  ['SOC2-CC6.9-001', 'Service Account Inventory', 'low', 'access_control', 'config', ['service account inventory', 'machine identity', 'bot account'], policyCheckFiles, 'SOC2 CC6.9 - Non-Human Identity', 'Track service accounts and rotate their credentials.'],
+  ['SOC2-CC6.10-001', 'Administrative Workstation Controls', 'medium', 'access_control', 'config', ['admin workstation', 'privileged workstation', 'secure admin host'], policyCheckFiles, 'SOC2 CC6.10 - Privileged Devices', 'Use hardened workstations for privileged operations.'],
+  ['SOC2-CC6.11-001', 'Shared Account Prohibition', 'low', 'access_control', 'config', ['shared account', 'named account', 'individual accountability'], policyCheckFiles, 'SOC2 CC6.11 - Accountability', 'Avoid shared accounts and require named user identities.'],
+  ['SOC2-CC7.1-001', 'Malware Protection Coverage', 'medium', 'infrastructure', 'config', ['endpoint protection', 'malware protection', 'antivirus'], policyCheckFiles, 'SOC2 CC7.1 - System Operations', 'Deploy endpoint or workload malware protection where appropriate.'],
+  ['SOC2-CC7.3-001', 'Backup Verification Testing', 'medium', 'infrastructure', 'config', ['restore drill', 'backup verification', 'recovery test'], infraCheckFiles, 'SOC2 CC7.3 - Backup and Recovery', 'Verify backups through recurring restore tests.'],
+  ['SOC2-CC7.4-001', 'Change Rollback Procedures', 'medium', 'infrastructure', 'config', ['rollback plan', 'deployment rollback', 'release recovery'], policyCheckFiles, 'SOC2 CC7.4 - Recovery', 'Maintain rollback procedures for production incidents and failed changes.'],
+  ['SOC2-CC7.5-001', 'Operational Runbook Library', 'low', 'audit_logging', 'config', ['runbook', 'operational playbook', 'service handbook'], policyCheckFiles, 'SOC2 CC7.5 - Operations Documentation', 'Document runbooks for critical services and failure scenarios.'],
+  ['SOC2-CC8.2-001', 'Change Ticket Traceability', 'low', 'audit_logging', 'config', ['change ticket', 'deployment ticket', 'request for change'], ciCheckFiles, 'SOC2 CC8.2 - Change Management', 'Track changes back to approved work items or incidents.'],
+  ['SOC2-CC8.3-001', 'Release Segregation Controls', 'medium', 'audit_logging', 'config', ['separation of duties', 'release approver', 'deployer'], ciCheckFiles, 'SOC2 CC8.3 - Deployment Controls', 'Separate development, approval, and deployment responsibilities.'],
+  ['SOC2-CC8.4-001', 'Post-Deployment Verification', 'low', 'audit_logging', 'config', ['smoke test', 'post deploy verification', 'health check'], ciCheckFiles, 'SOC2 CC8.4 - Post-Change Review', 'Verify production health after deployments with automated checks.'],
+  ['SOC2-CC9.1-001', 'Vendor Resilience Reviews', 'medium', 'infrastructure', 'config', ['vendor resilience', 'third party continuity', 'supplier review'], policyCheckFiles, 'SOC2 CC9.1 - Risk Mitigation', 'Review critical suppliers for continuity, security, and contractual obligations.'],
+  ['SOC2-CC9.2-001', 'Business Continuity Planning', 'medium', 'infrastructure', 'config', ['business continuity plan', 'continuity strategy', 'recovery objective'], policyCheckFiles, 'SOC2 CC9.2 - Risk Mitigation', 'Maintain continuity plans for critical systems and regulated workflows.'],
+  ['SOC2-CC9.3-001', 'Disaster Recovery Exercises', 'medium', 'infrastructure', 'config', ['disaster recovery test', 'failover exercise', 'dr plan'], policyCheckFiles, 'SOC2 CC9.3 - Risk Mitigation', 'Exercise disaster recovery plans and document remediation actions.'],
+  ['SOC2-CC9.4-001', 'Critical Dependency Inventory', 'low', 'infrastructure', 'config', ['dependency inventory', 'critical dependency', 'service map'], policyCheckFiles, 'SOC2 CC9.4 - Risk Mitigation', 'Maintain a dependency inventory for critical business services.'],
+  ['SOC2-A1.1-001', 'Availability Objectives', 'medium', 'infrastructure', 'config', ['availability objective', 'slo', 'uptime target'], policyCheckFiles, 'SOC2 A1.1 - Availability', 'Define and review availability objectives for critical services.'],
+  ['SOC2-A1.2-001', 'Capacity Management', 'medium', 'infrastructure', 'config', ['capacity planning', 'autoscaling', 'resource forecast'], infraCheckFiles, 'SOC2 A1.2 - Availability', 'Plan for capacity, autoscaling, and growth for critical systems.'],
+  ['SOC2-A1.3-001', 'Redundancy Architecture', 'medium', 'infrastructure', 'config', ['redundancy', 'multi az', 'failover'], infraCheckFiles, 'SOC2 A1.3 - Availability', 'Design redundancy for single points of failure in regulated workloads.'],
+  ['SOC2-A1.4-001', 'Status Communication', 'low', 'audit_logging', 'config', ['status page', 'incident communication', 'service notice'], policyCheckFiles, 'SOC2 A1.4 - Availability', 'Communicate service disruptions and maintenance windows consistently.'],
+  ['SOC2-PI1.1-001', 'Input Validation Policy', 'medium', 'infrastructure', 'config', ['input validation', 'schema validation', 'request validation'], codeCheckFiles, 'SOC2 PI1.1 - Processing Integrity', 'Validate inbound data before business processing occurs.'],
+  ['SOC2-PI1.3-001', 'Output Reconciliation Controls', 'low', 'audit_logging', 'config', ['reconciliation', 'control total', 'integrity check'], policyCheckFiles, 'SOC2 PI1.3 - Processing Integrity', 'Reconcile critical processing outputs and flag anomalies.'],
+  ['SOC2-PI1.4-001', 'Operational Error Handling Standards', 'low', 'audit_logging', 'config', ['error handling standard', 'retry policy', 'dead letter queue'], policyCheckFiles, 'SOC2 PI1.4 - Processing Integrity', 'Define retry, idempotency, and dead-letter handling standards.'],
+  ['SOC2-C1.2-001', 'Encryption at Rest Standard', 'high', 'encryption', 'config', ['encryption at rest', 'disk encryption', 'database encryption'], infraCheckFiles, 'SOC2 C1.2 - Confidentiality', 'Document and enforce encryption at rest for confidential data stores.'],
+  ['SOC2-C1.3-001', 'Confidential Data Classification', 'medium', 'phi_protection', 'config', ['data classification', 'confidentiality level', 'sensitivity label'], policyCheckFiles, 'SOC2 C1.3 - Confidentiality', 'Classify confidential data and define handling requirements.'],
+  ['SOC2-C1.4-001', 'Data Minimization Practices', 'medium', 'phi_protection', 'config', ['data minimization', 'least data', 'retention minimization'], policyCheckFiles, 'SOC2 C1.4 - Confidentiality', 'Minimize the amount of confidential data collected and retained.'],
+  ['SOC2-C1.5-001', 'Secure Disposal Standard', 'low', 'infrastructure', 'config', ['secure disposal', 'media destruction', 'retention disposal'], policyCheckFiles, 'SOC2 C1.5 - Confidentiality', 'Dispose of confidential data and media according to documented standards.'],
+  ['SOC2-P1.1-001', 'Privacy Notice Governance', 'low', 'ai_governance', 'config', ['privacy notice', 'privacy policy', 'data use notice'], policyCheckFiles, 'SOC2 P1.1 - Privacy', 'Maintain current privacy notices and data-use disclosures.'],
+  ['SOC2-P1.2-001', 'Consent Management', 'medium', 'ai_governance', 'config', ['consent management', 'user consent', 'consent withdrawal'], policyCheckFiles, 'SOC2 P1.2 - Privacy', 'Track consent where required and support withdrawal workflows.'],
+  ['SOC2-P1.3-001', 'Privacy Rights Handling', 'medium', 'ai_governance', 'config', ['data subject request', 'access request', 'deletion request'], policyCheckFiles, 'SOC2 P1.3 - Privacy', 'Handle access, deletion, and correction requests through documented workflows.'],
+  ['SOC2-P1.4-001', 'Retention and Deletion Controls', 'medium', 'phi_protection', 'config', ['retention schedule', 'data deletion', 'record retention'], policyCheckFiles, 'SOC2 P1.4 - Privacy', 'Define retention and deletion controls for regulated and personal data.'],
+];
+
+const soc2Generated = soc2Themes.map(([ruleId, title, severity, category, mode, values, checkFiles, citation, remediation]) => {
+  const description = `${title} coverage for the SOC 2 healthcare control objective.`;
+  if (mode === 'import') {
+    return importRule(ruleId, title, description, severity, category, citation, remediation, values);
+  }
+  return configRule(ruleId, title, description, severity, category, citation, remediation, values, checkFiles ?? policyCheckFiles);
+});
+
+const hitrustRules = [...hitrustBase, ...hitrustGenerated];
+const soc2Rules = [...soc2Base, ...soc2Generated];
+
+if (hitrustRules.length !== 156) {
+  throw new Error(`Expected 156 HITRUST rules, got ${hitrustRules.length}`);
+}
+if (soc2Rules.length !== 67) {
+  throw new Error(`Expected 67 SOC2 rules, got ${soc2Rules.length}`);
+}
+
+function buildSeed({ frameworkName, frameworkVersion, frameworkDescription, frameworkUrl, header, rules }) {
+  return `${header}\n\nINSERT OR IGNORE INTO frameworks (name, version, description, source_url)\nVALUES ('${frameworkName}', '${frameworkVersion}', '${frameworkDescription}', '${frameworkUrl}');\n\nINSERT INTO rules (framework_id, rule_id, title, description, severity, category, citation, remediation, pattern_type, pattern_config, is_required)\nVALUES\n${rules.map((rule) => asRuleRow(frameworkName, rule)).join(',\n')};\n`;
+}
+
+writeFileSync(
+  'src/rules/db/seed-hitrust.sql',
+  buildSeed({
+    frameworkName: 'hitrust',
+    frameworkVersion: '11.1',
+    frameworkDescription: 'HITRUST Common Security Framework v11 - Healthcare Security Controls',
+    frameworkUrl: 'https://hitrustalliance.net/csf/',
+    header: '-- HipaaLint AI - HITRUST CSF v11 Rule Seed\n-- Generated from scripts/generate-framework-seeds.mjs',
+    rules: hitrustRules,
+  }),
+);
+
+writeFileSync(
+  'src/rules/db/seed-soc2-health.sql',
+  buildSeed({
+    frameworkName: 'soc2-health',
+    frameworkVersion: '2026.1',
+    frameworkDescription: 'SOC2 Trust Services Criteria - Healthcare Supplement',
+    frameworkUrl: 'https://www.aicpa-cima.com/topic/audit-assurance/audit-and-assurance-greater-than-soc-2',
+    header: '-- HipaaLint AI - SOC2 Health Rule Seed\n-- Generated from scripts/generate-framework-seeds.mjs',
+    rules: soc2Rules,
+  }),
+);
+
+console.log(`Generated HITRUST rules: ${hitrustRules.length}`);
+console.log(`Generated SOC2 rules: ${soc2Rules.length}`);

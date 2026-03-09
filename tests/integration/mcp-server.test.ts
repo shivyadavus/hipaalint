@@ -310,12 +310,12 @@ describe('MCP Tool: phi_detect pipeline', () => {
 // ──────────────────────────────────────────────────
 
 describe('MCP Tool: compliance_rules pipeline', () => {
-  it('should return all 33 rules', () => {
+  it('should return the expanded rule catalog', () => {
     const evaluator = new RuleEvaluator({ sensitivity: 'balanced' });
     try {
       const db = evaluator.getRuleDatabase();
       const rules = db.getAllRules();
-      expect(rules.length).toBe(59);
+      expect(rules.length).toBe(266);
       for (const r of rules) {
         expect(r.ruleId).toBeDefined();
         expect(r.title).toBeDefined();

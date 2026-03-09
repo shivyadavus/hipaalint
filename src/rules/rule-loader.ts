@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
-import { readFileSync } from 'fs';
-import { join, dirname } from 'path';
+import { mkdirSync, readFileSync } from 'fs';
+import { homedir } from 'os';
+import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import type { Rule, Framework, Checkpoint } from '../engine/types.js';
 
@@ -49,12 +50,44 @@ const RULE_COLUMNS_PREFIXED = `r.id, r.framework_id as frameworkId, r.rule_id as
   r.pattern_type as patternType, r.pattern_config as patternConfig, 
   r.is_required as isRequired`;
 
+const EXPECTED_RULE_COUNTS: Record<string, number> = {
+  hipaa: 43,
+  hitrust: 156,
+  'soc2-health': 67,
+};
+const EXPECTED_FRAMEWORK_VERSIONS: Record<string, string> = {
+  hipaa: '2025.1',
+  hitrust: '11.1',
+  'soc2-health': '2026.1',
+};
+const EXPECTED_TOTAL_RULES = Object.values(EXPECTED_RULE_COUNTS).reduce(
+  (sum, count) => sum + count,
+  0,
+);
+
+function getDefaultDatabaseDir(): string {
+  if (process.platform === 'win32') {
+    return join(process.env.LOCALAPPDATA ?? join(homedir(), 'AppData', 'Local'), 'HipaaLint');
+  }
+
+  if (process.platform === 'darwin') {
+    return join(homedir(), 'Library', 'Application Support', 'HipaaLint');
+  }
+
+  return join(process.env.XDG_DATA_HOME ?? join(homedir(), '.local', 'share'), 'hipaalint');
+}
+
+export function getDefaultDatabasePath(): string {
+  return process.env.HIPAALINT_DB_PATH ?? join(getDefaultDatabaseDir(), 'hipaalint.db');
+}
+
 export class RuleDatabase {
   private db: Database.Database;
 
   constructor(dbPath?: string) {
-    const resolvedPath = dbPath || join(__dirname, 'db', 'hipaalint.db');
-    this.db = new Database(resolvedPath);
+    const resolvedPath = dbPath ?? getDefaultDatabasePath();
+    mkdirSync(dirname(resolvedPath), { recursive: true });
+    this.db = new Database(resolvedPath, { timeout: 5000 });
     this.db.pragma('journal_mode = WAL');
     this.db.pragma('foreign_keys = ON');
   }
@@ -90,16 +123,73 @@ export class RuleDatabase {
   }
 
   initialize(): void {
-    this.initSchema();
-    const row = this.db.prepare('SELECT COUNT(*) as count FROM frameworks').get() as {
-      count: number;
-    };
-    if (row.count === 0) {
-      this.seedHIPAA();
-      this.seedIaC();
-      this.seedHITRUST();
-      this.seedSOC2Health();
+    this.withWriteTransaction(() => {
+      this.initSchema();
+      const row = this.db.prepare('SELECT COUNT(*) as count FROM frameworks').get() as {
+        count: number;
+      };
+      if (row.count === 0 || this.needsReseed()) {
+        this.resetAndSeedUnsafe();
+      }
+    });
+  }
+
+  resetAndSeed(): void {
+    this.withWriteTransaction(() => {
+      this.initSchema();
+      this.resetAndSeedUnsafe();
+    });
+  }
+
+  private resetAndSeedUnsafe(): void {
+    this.db.exec(`
+      DELETE FROM checkpoints;
+      DELETE FROM rules;
+      DELETE FROM frameworks;
+      DELETE FROM sqlite_sequence WHERE name IN ('frameworks', 'rules', 'checkpoints');
+    `);
+    this.seedHIPAA();
+    this.seedIaC();
+    this.seedHITRUST();
+    this.seedSOC2Health();
+  }
+
+  private withWriteTransaction(callback: () => void): void {
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      callback();
+      this.db.exec('COMMIT');
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
     }
+  }
+
+  private needsReseed(): boolean {
+    const total = this.db.prepare('SELECT COUNT(*) as count FROM rules').get() as { count: number };
+    if (total.count !== EXPECTED_TOTAL_RULES) {
+      return true;
+    }
+
+    const rows = this.db.prepare(
+      `SELECT f.name as name, f.version as version, COUNT(r.id) as count
+       FROM frameworks f
+       LEFT JOIN rules r ON r.framework_id = f.id
+       GROUP BY f.name`,
+    ).all() as Array<{ name: string; version: string; count: number }>;
+
+    const byFramework = new Map(rows.map((row) => [row.name, row]));
+    for (const [framework, expectedCount] of Object.entries(EXPECTED_RULE_COUNTS)) {
+      const row = byFramework.get(framework);
+      if (!row || row.count !== expectedCount) {
+        return true;
+      }
+      if (row.version !== EXPECTED_FRAMEWORK_VERSIONS[framework]) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   // ── Framework queries ──
