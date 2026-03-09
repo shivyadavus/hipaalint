@@ -94,10 +94,7 @@ describe('analyzeProjectTaint', () => {
       [
         {
           filePath: '/tmp/template.ts',
-          content: [
-            'const { ssn } = req.body;',
-            'console.log(`Patient SSN ${ssn}`);',
-          ].join('\n'),
+          content: ['const { ssn } = req.body;', 'console.log(`Patient SSN ${ssn}`);'].join('\n'),
         },
       ],
       [logRule],

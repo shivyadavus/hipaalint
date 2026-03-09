@@ -7,6 +7,7 @@ HipaaLint AI is a HIPAA compliance enforcement tool for AI-assisted development.
 ## Architecture
 
 Three-layer architecture:
+
 1. **Layer 1 — Plugin/Skills** (`skills/`, `agents/`) — Directives for AI agents
 2. **Layer 2 — MCP Server** (`src/mcp-server/`) — 5 tools exposed via Model Context Protocol
 3. **Layer 3 — Engine** (`src/engine/`) — PHI detector, rule evaluator, score calculator

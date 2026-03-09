@@ -125,7 +125,10 @@ function normalizePath(path: string): string {
   return path.replace(/\\/g, '/');
 }
 
-function getNodeLocation(sourceFile: ts.SourceFile, node: ts.Node): { lineNumber: number; columnNumber: number } {
+function getNodeLocation(
+  sourceFile: ts.SourceFile,
+  node: ts.Node,
+): { lineNumber: number; columnNumber: number } {
   const position = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
   return { lineNumber: position.line + 1, columnNumber: position.character + 1 };
 }
@@ -165,7 +168,10 @@ function hasDependencies(deps: Iterable<DependencyToken>): boolean {
   return false;
 }
 
-function mapDependencies(deps: Iterable<DependencyToken>, argDeps: DependencyToken[][]): DependencyToken[] {
+function mapDependencies(
+  deps: Iterable<DependencyToken>,
+  argDeps: DependencyToken[][],
+): DependencyToken[] {
   const mapped = new Set<DependencyToken>();
   for (const dep of deps) {
     if (dep === SOURCE_TOKEN) {
@@ -195,7 +201,11 @@ function serializeSummary(summary: FunctionSummary): string {
   });
 }
 
-function resolveModulePath(fromFilePath: string, specifier: string, modules: Map<string, ModuleInfo>): string | null {
+function resolveModulePath(
+  fromFilePath: string,
+  specifier: string,
+  modules: Map<string, ModuleInfo>,
+): string | null {
   if (!specifier.startsWith('.')) return null;
 
   const raw = normalizePath(resolve(dirname(fromFilePath), specifier));
@@ -259,7 +269,10 @@ function collectModuleBindings(module: ModuleInfo, modules: Map<string, ModuleIn
       if (!resolved || !node.importClause) return;
 
       if (node.importClause.name) {
-        module.imports.set(node.importClause.name.text, { sourcePath: resolved, exportName: 'default' });
+        module.imports.set(node.importClause.name.text, {
+          sourcePath: resolved,
+          exportName: 'default',
+        });
       }
 
       const bindings = node.importClause.namedBindings;
@@ -300,7 +313,10 @@ function collectModuleBindings(module: ModuleInfo, modules: Map<string, ModuleIn
         if (!ts.isIdentifier(declaration.name)) continue;
         const localName = declaration.name.text;
         const initializer = declaration.initializer;
-        if (initializer && (ts.isArrowFunction(initializer) || ts.isFunctionExpression(initializer))) {
+        if (
+          initializer &&
+          (ts.isArrowFunction(initializer) || ts.isFunctionExpression(initializer))
+        ) {
           module.functions.set(localName, {
             name: localName,
             node: initializer,
@@ -444,13 +460,19 @@ function evaluateExpression(
   if (!expression) return [];
 
   if (ts.isIdentifier(expression)) {
-    return mergeDependencies(env.get(expression.text) ?? [], getImportedValueDependencies(module, expression.text, context));
+    return mergeDependencies(
+      env.get(expression.text) ?? [],
+      getImportedValueDependencies(module, expression.text, context),
+    );
   }
 
   if (ts.isPropertyAccessExpression(expression)) {
     const objectDeps = evaluateExpression(module, env, expression.expression, context);
     if (hasDependencies(objectDeps) || isTaintSourceName(expression.name.text)) {
-      return mergeDependencies(objectDeps, isTaintSourceName(expression.name.text) ? [SOURCE_TOKEN] : []);
+      return mergeDependencies(
+        objectDeps,
+        isTaintSourceName(expression.name.text) ? [SOURCE_TOKEN] : [],
+      );
     }
     return [];
   }
@@ -462,7 +484,13 @@ function evaluateExpression(
     );
   }
 
-  if (ts.isParenthesizedExpression(expression) || ts.isNonNullExpression(expression) || ts.isAsExpression(expression) || ts.isTypeAssertionExpression(expression) || ts.isSatisfiesExpression(expression)) {
+  if (
+    ts.isParenthesizedExpression(expression) ||
+    ts.isNonNullExpression(expression) ||
+    ts.isAsExpression(expression) ||
+    ts.isTypeAssertionExpression(expression) ||
+    ts.isSatisfiesExpression(expression)
+  ) {
     return evaluateExpression(module, env, expression.expression, context);
   }
 
@@ -487,7 +515,9 @@ function evaluateExpression(
 
   if (ts.isTemplateExpression(expression)) {
     return mergeDependencies(
-      ...expression.templateSpans.map((span) => evaluateExpression(module, env, span.expression, context)),
+      ...expression.templateSpans.map((span) =>
+        evaluateExpression(module, env, span.expression, context),
+      ),
     );
   }
 
@@ -524,7 +554,9 @@ function evaluateExpression(
           return evaluateExpression(module, env, property.name, context);
         }
         if (ts.isPropertyAssignment(property)) {
-          const name = ts.isIdentifier(property.name) ? property.name.text : property.name.getText();
+          const name = ts.isIdentifier(property.name)
+            ? property.name.text
+            : property.name.getText();
           const propertyDeps = evaluateExpression(module, env, property.initializer, context);
           if (isTaintSourceName(name)) {
             return mergeDependencies(propertyDeps, [SOURCE_TOKEN]);
@@ -544,14 +576,18 @@ function evaluateExpression(
     if (!summary) {
       return [];
     }
-    const argDeps = expression.arguments.map((argument) => evaluateExpression(module, env, argument, context));
+    const argDeps = expression.arguments.map((argument) =>
+      evaluateExpression(module, env, argument, context),
+    );
     return mapDependencies(summary.returnDependencies, argDeps);
   }
 
   if (ts.isNewExpression(expression)) {
     return mergeDependencies(
       evaluateExpression(module, env, expression.expression as ts.Expression, context),
-      ...(expression.arguments ?? []).map((argument) => evaluateExpression(module, env, argument, context)),
+      ...(expression.arguments ?? []).map((argument) =>
+        evaluateExpression(module, env, argument, context),
+      ),
     );
   }
 
@@ -559,7 +595,11 @@ function evaluateExpression(
     return evaluateExpression(module, env, expression.operand, context);
   }
 
-  if (ts.isPropertyAccessChain?.(expression) || ts.isElementAccessChain?.(expression) || ts.isCallChain?.(expression)) {
+  if (
+    ts.isPropertyAccessChain?.(expression) ||
+    ts.isElementAccessChain?.(expression) ||
+    ts.isCallChain?.(expression)
+  ) {
     return evaluateExpression(module, env, expression.expression as ts.Expression, context);
   }
 
@@ -574,16 +614,19 @@ function assignBindingName(
   context: ProjectAnalysisContext,
 ): void {
   if (ts.isIdentifier(name)) {
-    const deps = isTaintSourceName(name.text) ? mergeDependencies(baseDeps, [SOURCE_TOKEN]) : baseDeps;
+    const deps = isTaintSourceName(name.text)
+      ? mergeDependencies(baseDeps, [SOURCE_TOKEN])
+      : baseDeps;
     env.set(name.text, deps);
     return;
   }
 
   if (ts.isObjectBindingPattern(name)) {
     for (const element of name.elements) {
-      const propertyName = element.propertyName && ts.isIdentifier(element.propertyName)
-        ? element.propertyName.text
-        : element.name.getText();
+      const propertyName =
+        element.propertyName && ts.isIdentifier(element.propertyName)
+          ? element.propertyName.text
+          : element.name.getText();
       const initializerDeps = element.initializer
         ? evaluateExpression(module, env, element.initializer, context)
         : [];
@@ -600,7 +643,13 @@ function assignBindingName(
     const initializerDeps = element.initializer
       ? evaluateExpression(module, env, element.initializer, context)
       : [];
-    assignBindingName(module, env, element.name, mergeDependencies(baseDeps, initializerDeps), context);
+    assignBindingName(
+      module,
+      env,
+      element.name,
+      mergeDependencies(baseDeps, initializerDeps),
+      context,
+    );
   }
 }
 
@@ -648,7 +697,10 @@ function analyzeStatementList(
     }
 
     if (ts.isReturnStatement(node)) {
-      returnDeps = mergeDependencies(returnDeps, evaluateExpression(module, env, node.expression, context));
+      returnDeps = mergeDependencies(
+        returnDeps,
+        evaluateExpression(module, env, node.expression, context),
+      );
       return;
     }
 
@@ -675,10 +727,19 @@ function analyzeStatementList(
             env,
             context,
           )
-        : { env: new Map<string, DependencyToken[]>(), sinkEvents: [], returnDeps: [] as DependencyToken[] };
+        : {
+            env: new Map<string, DependencyToken[]>(),
+            sinkEvents: [],
+            returnDeps: [] as DependencyToken[],
+          };
 
       sinkEvents.push(...whenTrue.sinkEvents, ...whenFalse.sinkEvents);
-      returnDeps = mergeDependencies(returnDeps, conditionDeps, whenTrue.returnDeps, whenFalse.returnDeps);
+      returnDeps = mergeDependencies(
+        returnDeps,
+        conditionDeps,
+        whenTrue.returnDeps,
+        whenFalse.returnDeps,
+      );
       for (const [key, value] of whenTrue.env) {
         env.set(key, mergeDependencies(env.get(key) ?? [], value));
       }
@@ -719,7 +780,11 @@ function analyzeStatementList(
         context,
       );
       sinkEvents.push(...body.sinkEvents);
-      returnDeps = mergeDependencies(returnDeps, evaluateExpression(module, env, node.expression, context), body.returnDeps);
+      returnDeps = mergeDependencies(
+        returnDeps,
+        evaluateExpression(module, env, node.expression, context),
+        body.returnDeps,
+      );
       for (const [key, value] of body.env) {
         env.set(key, mergeDependencies(env.get(key) ?? [], value));
       }
@@ -736,10 +801,18 @@ function analyzeStatementList(
 
       if (node.catchClause) {
         const catchEnv = new Map(env);
-        if (node.catchClause.variableDeclaration && ts.isIdentifier(node.catchClause.variableDeclaration.name)) {
+        if (
+          node.catchClause.variableDeclaration &&
+          ts.isIdentifier(node.catchClause.variableDeclaration.name)
+        ) {
           catchEnv.set(node.catchClause.variableDeclaration.name.text, []);
         }
-        const catchResult = analyzeStatementList(module, node.catchClause.block.statements, catchEnv, context);
+        const catchResult = analyzeStatementList(
+          module,
+          node.catchClause.block.statements,
+          catchEnv,
+          context,
+        );
         sinkEvents.push(...catchResult.sinkEvents);
         returnDeps = mergeDependencies(returnDeps, catchResult.returnDeps);
         for (const [key, value] of catchResult.env) {
@@ -748,7 +821,12 @@ function analyzeStatementList(
       }
 
       if (node.finallyBlock) {
-        const finallyResult = analyzeStatementList(module, node.finallyBlock.statements, env, context);
+        const finallyResult = analyzeStatementList(
+          module,
+          node.finallyBlock.statements,
+          env,
+          context,
+        );
         sinkEvents.push(...finallyResult.sinkEvents);
         returnDeps = mergeDependencies(returnDeps, finallyResult.returnDeps);
         for (const [key, value] of finallyResult.env) {
@@ -772,14 +850,20 @@ function analyzeStatementList(
   };
 
   const visitExpression = (expression: ts.Expression): void => {
-    if (ts.isBinaryExpression(expression) && expression.operatorToken.kind === ts.SyntaxKind.EqualsToken) {
+    if (
+      ts.isBinaryExpression(expression) &&
+      expression.operatorToken.kind === ts.SyntaxKind.EqualsToken
+    ) {
       const rightDeps = evaluateExpression(module, env, expression.right, context);
       if (ts.isIdentifier(expression.left)) {
         const deps = isTaintSourceName(expression.left.text)
           ? mergeDependencies(rightDeps, [SOURCE_TOKEN])
           : rightDeps;
         env.set(expression.left.text, deps);
-      } else if (ts.isArrayLiteralExpression(expression.left) || ts.isObjectLiteralExpression(expression.left)) {
+      } else if (
+        ts.isArrayLiteralExpression(expression.left) ||
+        ts.isObjectLiteralExpression(expression.left)
+      ) {
         evaluateExpression(module, env, expression.left as unknown as ts.Expression, context);
       }
       return;
@@ -787,10 +871,14 @@ function analyzeStatementList(
 
     if (ts.isCallExpression(expression)) {
       const directSink = getDirectSink(expression);
-      const argDeps = expression.arguments.map((argument) => evaluateExpression(module, env, argument, context));
+      const argDeps = expression.arguments.map((argument) =>
+        evaluateExpression(module, env, argument, context),
+      );
       const combinedArgs = mergeDependencies(...argDeps);
       if (directSink && hasDependencies(combinedArgs)) {
-        sinkEvents.push(createSinkEvent(directSink.kind, directSink.calleeText, module, expression, combinedArgs));
+        sinkEvents.push(
+          createSinkEvent(directSink.kind, directSink.calleeText, module, expression, combinedArgs),
+        );
       }
 
       const summary = resolveFunctionSummary(module, expression.expression, context);
@@ -819,7 +907,10 @@ function analyzeStatementList(
   return { env, sinkEvents, returnDeps: sortDependencies(returnDeps) };
 }
 
-function analyzeFunction(functionInfo: FunctionInfo, context: ProjectAnalysisContext): FunctionSummary {
+function analyzeFunction(
+  functionInfo: FunctionInfo,
+  context: ProjectAnalysisContext,
+): FunctionSummary {
   const env = new Map<string, DependencyToken[]>();
   functionInfo.params.forEach((param, index) => {
     if (isTaintSourceName(param)) {
@@ -829,11 +920,12 @@ function analyzeFunction(functionInfo: FunctionInfo, context: ProjectAnalysisCon
     }
   });
 
-  const statements = functionInfo.node.body && ts.isBlock(functionInfo.node.body)
-    ? functionInfo.node.body.statements
-    : functionInfo.node.body && ts.isExpression(functionInfo.node.body)
-      ? [ts.factory.createReturnStatement(functionInfo.node.body)]
-      : [];
+  const statements =
+    functionInfo.node.body && ts.isBlock(functionInfo.node.body)
+      ? functionInfo.node.body.statements
+      : functionInfo.node.body && ts.isExpression(functionInfo.node.body)
+        ? [ts.factory.createReturnStatement(functionInfo.node.body)]
+        : [];
 
   const analysis = analyzeStatementList(
     context.modules.get(functionInfo.filePath)!,
@@ -881,7 +973,9 @@ function buildRuleMatchers(rules: Rule[]): Map<string, RuleMatcher> {
     if (Array.isArray(config.functionNames) && config.checkArguments) {
       matchers.set(rule.ruleId, {
         kind: 'log',
-        functionNames: new Set((config.functionNames as string[]).map((name) => name.toLowerCase())),
+        functionNames: new Set(
+          (config.functionNames as string[]).map((name) => name.toLowerCase()),
+        ),
       });
       continue;
     }
@@ -963,9 +1057,14 @@ export function analyzeProjectTaint(files: TaintFile[], rules: Rule[]): Complian
 
     for (const module of modules.values()) {
       const topLevel = analyzeTopLevelModule(module, context);
-      const currentExports = context.exportedValueDeps.get(module.filePath) ?? new Map<string, DependencyToken[]>();
-      const nextSerialized = JSON.stringify([...topLevel.exports.entries()].sort(([a], [b]) => a.localeCompare(b)));
-      const currentSerialized = JSON.stringify([...currentExports.entries()].sort(([a], [b]) => a.localeCompare(b)));
+      const currentExports =
+        context.exportedValueDeps.get(module.filePath) ?? new Map<string, DependencyToken[]>();
+      const nextSerialized = JSON.stringify(
+        [...topLevel.exports.entries()].sort(([a], [b]) => a.localeCompare(b)),
+      );
+      const currentSerialized = JSON.stringify(
+        [...currentExports.entries()].sort(([a], [b]) => a.localeCompare(b)),
+      );
       if (nextSerialized !== currentSerialized) {
         context.exportedValueDeps.set(module.filePath, topLevel.exports);
         changed = true;

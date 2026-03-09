@@ -3,11 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync, existsSync } from 'fs';
 import { tmpdir } from 'os';
 import { dirname, extname, join } from 'path';
 import { pathToFileURL } from 'url';
-import {
-  fixCorsWildcardLine,
-  fixHttpLine,
-  fixWeakTlsLine,
-} from './fixes.js';
+import { fixCorsWildcardLine, fixHttpLine, fixWeakTlsLine } from './fixes.js';
 import type {
   ComplianceFinding,
   ComplianceScore,
@@ -87,7 +83,9 @@ async function loadEngine(context: vscode.ExtensionContext): Promise<EngineModul
         try {
           return (await import(packagedFallback)) as EngineModule;
         } catch {
-          const devFallback = pathToFileURL(join(context.extensionPath, '..', 'dist', 'index.js')).href;
+          const devFallback = pathToFileURL(
+            join(context.extensionPath, '..', 'dist', 'index.js'),
+          ).href;
           return (await import(devFallback)) as EngineModule;
         }
       }
@@ -129,7 +127,10 @@ async function resolveScanOptions(
   });
 }
 
-function createTemporaryFile(document: vscode.TextDocument): { tempPath: string; cleanup: () => void } {
+function createTemporaryFile(document: vscode.TextDocument): {
+  tempPath: string;
+  cleanup: () => void;
+} {
   const tempDir = mkdtempSync(join(tmpdir(), 'hipaalint-vscode-'));
   const tempPath = join(tempDir, `document${extname(document.uri.fsPath) || '.ts'}`);
   writeFileSync(tempPath, document.getText(), 'utf-8');
@@ -233,21 +234,30 @@ class DashboardProvider implements vscode.WebviewViewProvider {
   <div class="card">
     <h2>Score</h2>
     ${score ? `<div class="score">${score.overallScore.toFixed(1)}</div><div class="band">${score.band.replace(/_/g, ' ')}</div>` : '<p>No scan yet.</p>'}
-    ${counts ? `<div class="counts">
+    ${
+      counts
+        ? `<div class="counts">
       <div class="count">Critical: ${counts.bySeverity.critical}</div>
       <div class="count">High: ${counts.bySeverity.high}</div>
       <div class="count">Medium: ${counts.bySeverity.medium}</div>
       <div class="count">Low: ${counts.bySeverity.low}</div>
-    </div>` : ''}
+    </div>`
+        : ''
+    }
     ${this.state.error ? `<p class="error" style="margin-top: 12px;">${this.state.error}</p>` : ''}
   </div>
   <div class="card">
     <h2>Top Findings</h2>
-    ${findings.length > 0 ? findings
-      .map(
-        (finding) => `<div class="finding"><div class="rule">${finding.ruleId}</div><strong>${finding.title}</strong><p>${finding.remediation}</p></div>`,
-      )
-      .join('') : '<p>No findings.</p>'}
+    ${
+      findings.length > 0
+        ? findings
+            .map(
+              (finding) =>
+                `<div class="finding"><div class="rule">${finding.ruleId}</div><strong>${finding.title}</strong><p>${finding.remediation}</p></div>`,
+            )
+            .join('')
+        : '<p>No findings.</p>'
+    }
   </div>
   <script>
     window.addEventListener('message', () => {});
@@ -268,7 +278,11 @@ class DashboardProvider implements vscode.WebviewViewProvider {
 class HipaaLintCodeActions implements vscode.CodeActionProvider {
   static readonly providedCodeActionKinds = [vscode.CodeActionKind.QuickFix];
 
-  provideCodeActions(document: vscode.TextDocument, range: vscode.Range, context: vscode.CodeActionContext): vscode.CodeAction[] {
+  provideCodeActions(
+    document: vscode.TextDocument,
+    range: vscode.Range,
+    context: vscode.CodeActionContext,
+  ): vscode.CodeAction[] {
     const actions: vscode.CodeAction[] = [];
     const lineText = document.lineAt(range.start.line).text;
 
@@ -330,7 +344,10 @@ class HipaaLintCodeActions implements vscode.CodeActionProvider {
 class HipaaLintController {
   private readonly diagnostics = vscode.languages.createDiagnosticCollection('hipaalint');
   private readonly dashboard = new DashboardProvider();
-  private readonly statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
+  private readonly statusBar = vscode.window.createStatusBarItem(
+    vscode.StatusBarAlignment.Left,
+    100,
+  );
   private readonly debounceTimers = new Map<string, NodeJS.Timeout>();
 
   constructor(private readonly context: vscode.ExtensionContext) {
@@ -346,7 +363,13 @@ class HipaaLintController {
       this.statusBar,
       vscode.window.registerWebviewViewProvider(DashboardProvider.viewType, this.dashboard),
       vscode.languages.registerCodeActionsProvider(
-        [{ scheme: 'file', language: 'javascript' }, { scheme: 'file', language: 'javascriptreact' }, { scheme: 'file', language: 'typescript' }, { scheme: 'file', language: 'typescriptreact' }, { scheme: 'file', language: 'python' }],
+        [
+          { scheme: 'file', language: 'javascript' },
+          { scheme: 'file', language: 'javascriptreact' },
+          { scheme: 'file', language: 'typescript' },
+          { scheme: 'file', language: 'typescriptreact' },
+          { scheme: 'file', language: 'python' },
+        ],
         new HipaaLintCodeActions(),
         { providedCodeActionKinds: HipaaLintCodeActions.providedCodeActionKinds },
       ),
@@ -356,7 +379,10 @@ class HipaaLintController {
         await this.scanDocument(editor.document, true);
       }),
       vscode.commands.registerCommand('hipaalint.refreshDashboard', async () => {
-        await this.refreshWorkspaceDashboard(vscode.window.activeTextEditor?.document.uri ?? vscode.workspace.workspaceFolders?.[0]?.uri);
+        await this.refreshWorkspaceDashboard(
+          vscode.window.activeTextEditor?.document.uri ??
+            vscode.workspace.workspaceFolders?.[0]?.uri,
+        );
       }),
       vscode.commands.registerCommand('hipaalint.openConfig', async () => {
         await this.openConfig();
@@ -405,10 +431,13 @@ class HipaaLintController {
     const existing = this.debounceTimers.get(key);
     if (existing) clearTimeout(existing);
 
-    const timer = setTimeout(() => {
-      void this.scanDocument(document, false);
-      this.debounceTimers.delete(key);
-    }, settings.get<number>('debounceMs', 500));
+    const timer = setTimeout(
+      () => {
+        void this.scanDocument(document, false);
+        this.debounceTimers.delete(key);
+      },
+      settings.get<number>('debounceMs', 500),
+    );
     this.debounceTimers.set(key, timer);
   }
 
@@ -421,14 +450,21 @@ class HipaaLintController {
 
     const evaluator = new engine.RuleEvaluator({ sensitivity: options.sensitivity });
     try {
-      const result = evaluator.evaluate([targetPath?.tempPath ?? document.uri.fsPath], options.framework, {
-        ignore: options.ignore,
-        maxFiles: options.maxFiles,
-        maxDepth: options.maxDepth,
-        timeoutMs: options.timeout,
-      });
+      const result = evaluator.evaluate(
+        [targetPath?.tempPath ?? document.uri.fsPath],
+        options.framework,
+        {
+          ignore: options.ignore,
+          maxFiles: options.maxFiles,
+          maxDepth: options.maxDepth,
+          timeoutMs: options.timeout,
+        },
+      );
       const findings = result.findings;
-      this.diagnostics.set(document.uri, findings.map((finding) => this.toDiagnostic(document, finding)));
+      this.diagnostics.set(
+        document.uri,
+        findings.map((finding) => this.toDiagnostic(document, finding)),
+      );
       if (manual) {
         vscode.window.setStatusBarMessage(`HipaaLint: ${findings.length} finding(s)`, 3500);
       }
@@ -441,24 +477,40 @@ class HipaaLintController {
     }
   }
 
-  private toDiagnostic(document: vscode.TextDocument, finding: ComplianceFinding): vscode.Diagnostic {
+  private toDiagnostic(
+    document: vscode.TextDocument,
+    finding: ComplianceFinding,
+  ): vscode.Diagnostic {
     const line = Math.max(0, finding.lineNumber - 1);
     const startCharacter = Math.max(0, finding.columnNumber - 1);
     const lineLength = document.lineAt(Math.min(line, document.lineCount - 1)).text.length;
     const range = new vscode.Range(
       new vscode.Position(line, Math.min(startCharacter, lineLength)),
-      new vscode.Position(line, Math.min(lineLength, startCharacter + Math.max(1, finding.codeSnippet.length))),
+      new vscode.Position(
+        line,
+        Math.min(lineLength, startCharacter + Math.max(1, finding.codeSnippet.length)),
+      ),
     );
-    const diagnostic = new vscode.Diagnostic(range, `${finding.title}: ${finding.remediation}`, severityToDiagnostic(finding.severity));
+    const diagnostic = new vscode.Diagnostic(
+      range,
+      `${finding.title}: ${finding.remediation}`,
+      severityToDiagnostic(finding.severity),
+    );
     diagnostic.code = finding.ruleId;
     diagnostic.source = 'HipaaLint';
     return diagnostic;
   }
 
   private async refreshWorkspaceDashboard(target?: vscode.Uri): Promise<void> {
-    const folder = target ? vscode.workspace.getWorkspaceFolder(target) : vscode.workspace.workspaceFolders?.[0];
+    const folder = target
+      ? vscode.workspace.getWorkspaceFolder(target)
+      : vscode.workspace.workspaceFolders?.[0];
     if (!folder) {
-      this.dashboard.update({ workspaceName: 'No workspace', framework: 'hipaa', error: 'Open a workspace folder to calculate a compliance score.' });
+      this.dashboard.update({
+        workspaceName: 'No workspace',
+        framework: 'hipaa',
+        error: 'Open a workspace folder to calculate a compliance score.',
+      });
       this.statusBar.text = '$(shield) HipaaLint';
       return;
     }
@@ -474,7 +526,11 @@ class HipaaLintController {
         timeoutMs: options.timeout,
       });
       const scoreCalculator = new engine.ScoreCalculator();
-      const score = scoreCalculator.calculateScore(scanResult, options.framework, options.sensitivity);
+      const score = scoreCalculator.calculateScore(
+        scanResult,
+        options.framework,
+        options.sensitivity,
+      );
       const counts = engine.countFindings(scanResult.findings);
       this.dashboard.update({
         workspaceName: folder.name,
@@ -486,7 +542,11 @@ class HipaaLintController {
       this.statusBar.text = `$(shield) ${score.overallScore.toFixed(0)} ${score.band.replace(/_/g, ' ')}`;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      this.dashboard.update({ workspaceName: folder.name, framework: options.framework, error: message });
+      this.dashboard.update({
+        workspaceName: folder.name,
+        framework: options.framework,
+        error: message,
+      });
       this.statusBar.text = '$(shield) HipaaLint';
     } finally {
       evaluator.close();

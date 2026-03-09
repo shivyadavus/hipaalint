@@ -303,7 +303,10 @@ export class RuleEvaluator {
     );
     for (const finding of taintFindings) {
       const suppressionMap = suppressionCache.get(finding.filePath);
-      if (!suppressionMap || !isSuppressed(suppressionMap, finding.lineNumber - 1, finding.ruleId)) {
+      if (
+        !suppressionMap ||
+        !isSuppressed(suppressionMap, finding.lineNumber - 1, finding.ruleId)
+      ) {
         allFindings.push(finding);
       }
     }
@@ -679,7 +682,9 @@ export class RuleEvaluator {
     if (!config.requiredImports || !Array.isArray(config.requiredImports)) return [];
 
     const codeFiles = files.filter((filePath) =>
-      ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.py'].includes(extname(filePath).toLowerCase()),
+      ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.py'].includes(
+        extname(filePath).toLowerCase(),
+      ),
     );
     if (codeFiles.length === 0) return [];
 
