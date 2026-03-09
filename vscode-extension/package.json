@@ -1,0 +1,109 @@
+{
+  "name": "hipaalint",
+  "displayName": "HipaaLint",
+  "description": "Inline HIPAA, HITRUST, and SOC 2 diagnostics for healthcare codebases.",
+  "version": "1.0.0",
+  "publisher": "shivyadav",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/shivyadavus/hipaalint.git"
+  },
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Linters",
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished",
+    "onCommand:hipaalint.scan",
+    "onCommand:hipaalint.refreshDashboard",
+    "onCommand:hipaalint.openConfig",
+    "onLanguage:javascript",
+    "onLanguage:typescript",
+    "onLanguage:javascriptreact",
+    "onLanguage:typescriptreact",
+    "onLanguage:python"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "hipaalint.scan",
+        "title": "HipaaLint: Scan Current File"
+      },
+      {
+        "command": "hipaalint.refreshDashboard",
+        "title": "HipaaLint: Refresh Dashboard"
+      },
+      {
+        "command": "hipaalint.openConfig",
+        "title": "HipaaLint: Open Configuration"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "hipaalint",
+          "title": "HipaaLint",
+          "icon": "media/logo-dark.svg"
+        }
+      ]
+    },
+    "views": {
+      "hipaalint": [
+        {
+          "id": "hipaalint.dashboard",
+          "name": "Compliance Dashboard"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "HipaaLint",
+      "properties": {
+        "hipaalint.framework": {
+          "type": "string",
+          "enum": ["hipaa", "hitrust", "soc2-health"],
+          "default": "hipaa",
+          "description": "Default framework when the workspace does not override it in .hipaalintrc."
+        },
+        "hipaalint.sensitivity": {
+          "type": "string",
+          "enum": ["strict", "balanced", "relaxed"],
+          "default": "balanced",
+          "description": "Detection sensitivity for editor scans."
+        },
+        "hipaalint.autoScan": {
+          "type": "boolean",
+          "default": true,
+          "description": "Refresh diagnostics automatically for supported files."
+        },
+        "hipaalint.debounceMs": {
+          "type": "number",
+          "default": 500,
+          "minimum": 150,
+          "description": "Delay before rescanning after document changes."
+        },
+        "hipaalint.configPath": {
+          "type": "string",
+          "default": "",
+          "description": "Optional explicit path to a .hipaalintrc file."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "typecheck": "tsc -p ./ --noEmit",
+    "watch": "tsc -watch -p ./"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/vscode": "^1.80.0",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.9.3"
+  }
+}

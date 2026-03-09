@@ -1,0 +1,45 @@
+<idea-plugin>
+  <id>com.hipaalint.plugin</id>
+  <name>HipaaLint</name>
+  <vendor email="support@hipaalint.ai">HipaaLint</vendor>
+  <description><![CDATA[
+    Inline HIPAA, HITRUST, and SOC 2 inspections powered by HipaaLint.
+  ]]></description>
+
+  <depends>com.intellij.modules.platform</depends>
+  <depends>com.intellij.modules.java</depends>
+
+  <extensions defaultExtensionNs="com.intellij">
+    <localInspection
+        language="JAVA"
+        shortName="HipaaLintInspection"
+        groupPath="HipaaLint"
+        enabledByDefault="true"
+        level="WARNING"
+        implementationClass="com.hipaalint.plugin.HipaaLintLocalInspection"/>
+    <localInspection
+        language="JavaScript"
+        shortName="HipaaLintInspectionJavaScript"
+        groupPath="HipaaLint"
+        enabledByDefault="true"
+        level="WARNING"
+        implementationClass="com.hipaalint.plugin.HipaaLintLocalInspection"/>
+    <localInspection
+        language="TypeScript"
+        shortName="HipaaLintInspectionTypeScript"
+        groupPath="HipaaLint"
+        enabledByDefault="true"
+        level="WARNING"
+        implementationClass="com.hipaalint.plugin.HipaaLintLocalInspection"/>
+    <localInspection
+        language="Python"
+        shortName="HipaaLintInspectionPython"
+        groupPath="HipaaLint"
+        enabledByDefault="true"
+        level="WARNING"
+        implementationClass="com.hipaalint.plugin.HipaaLintLocalInspection"/>
+    <projectService serviceImplementation="com.hipaalint.plugin.HipaaLintSettingsService"/>
+    <projectConfigurable instance="com.hipaalint.plugin.HipaaLintSettingsConfigurable"/>
+    <toolWindow id="HipaaLint" anchor="right" factoryClass="com.hipaalint.plugin.HipaaLintToolWindowFactory" canCloseContents="false"/>
+  </extensions>
+</idea-plugin>

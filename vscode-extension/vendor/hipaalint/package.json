@@ -1,0 +1,6 @@
+{
+  "name": "@hipaalint/embedded",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js"
+}
