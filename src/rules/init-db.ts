@@ -1,7 +1,7 @@
 #!/usr/bin/env tsx
 /**
  * Initialize the HipaaLint database.
- * Creates the schema and seeds with HIPAA rules.
+ * Creates the schema and seeds the full bundled rule catalog.
  *
  * Usage: npx tsx src/rules/init-db.ts [dbPath]
  */

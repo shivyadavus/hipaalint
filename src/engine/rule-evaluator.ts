@@ -1,7 +1,7 @@
 import type { ComplianceFinding, Rule, ScanResult, SensitivityLevel } from './types.js';
 import { PHIDetector } from './phi-detector.js';
 import { RegexCache } from './regex-cache.js';
-import { analyzeTaint } from './taint-tracker.js';
+import { analyzeProjectTaint } from './taint-tracker.js';
 import { RuleDatabase } from '../rules/rule-loader.js';
 import { validateScanPath } from '../security/index.js';
 import { readFileSync, readdirSync, lstatSync, existsSync } from 'fs';
@@ -255,6 +255,8 @@ export class RuleEvaluator {
 
     // Evaluate each file
     const allFindings: ComplianceFinding[] = [];
+    const fileContents = new Map<string, string>();
+    const suppressionCache = new Map<string, Map<number, SuppressionEntry>>();
     let filesSkipped = 0;
     let timedOut = false;
     const skipReasons = { binary: 0, tooLarge: 0, readError: 0 };
@@ -283,13 +285,31 @@ export class RuleEvaluator {
           continue;
         }
 
+        fileContents.set(filePath, content);
         const findings = this.evaluateFile(filePath, content, rules);
         allFindings.push(...findings);
+
+        const lines = content.replace(/\r\n/g, '\n').split('\n');
+        suppressionCache.set(filePath, buildSuppressionMap(lines));
       } catch {
         filesSkipped++;
         skipReasons.readError++;
       }
     }
+
+    const taintFindings = analyzeProjectTaint(
+      [...fileContents.entries()].map(([filePath, content]) => ({ filePath, content })),
+      rules,
+    );
+    for (const finding of taintFindings) {
+      const suppressionMap = suppressionCache.get(finding.filePath);
+      if (!suppressionMap || !isSuppressed(suppressionMap, finding.lineNumber - 1, finding.ruleId)) {
+        allFindings.push(finding);
+      }
+    }
+
+    const projectScopedFindings = this.evaluateProjectScopedRules(files, fileContents, rules);
+    allFindings.push(...projectScopedFindings);
 
     const hasSkipReasons =
       skipReasons.binary > 0 || skipReasons.tooLarge > 0 || skipReasons.readError > 0;
@@ -544,6 +564,8 @@ export class RuleEvaluator {
     rule: Rule,
     config: Record<string, unknown>,
   ): ComplianceFinding[] {
+    if (config.scope === 'project') return [];
+
     // Only evaluate files that match the checkFiles globs
     if (!config.checkFiles || !Array.isArray(config.checkFiles)) return [];
 
@@ -597,6 +619,7 @@ export class RuleEvaluator {
     rule: Rule,
     config: Record<string, unknown>,
   ): ComplianceFinding[] {
+    if (config.scope === 'project') return [];
     if (!config.requiredImports || !Array.isArray(config.requiredImports)) return [];
 
     // Only check relevant file types
@@ -621,6 +644,112 @@ export class RuleEvaluator {
     }
 
     return [];
+  }
+
+  private evaluateProjectScopedRules(
+    files: string[],
+    fileContents: Map<string, string>,
+    rules: Rule[],
+  ): ComplianceFinding[] {
+    const findings: ComplianceFinding[] = [];
+
+    for (const rule of rules) {
+      const config = this.getParsedConfig(rule);
+      if (!config || config.scope !== 'project') continue;
+
+      switch (rule.patternType) {
+        case 'import_pattern':
+          findings.push(...this.evaluateProjectImportPattern(files, fileContents, rule, config));
+          break;
+        case 'config_pattern':
+          findings.push(...this.evaluateProjectConfigPattern(files, fileContents, rule, config));
+          break;
+      }
+    }
+
+    return findings;
+  }
+
+  private evaluateProjectImportPattern(
+    files: string[],
+    fileContents: Map<string, string>,
+    rule: Rule,
+    config: Record<string, unknown>,
+  ): ComplianceFinding[] {
+    if (!config.requiredImports || !Array.isArray(config.requiredImports)) return [];
+
+    const codeFiles = files.filter((filePath) =>
+      ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.py'].includes(extname(filePath).toLowerCase()),
+    );
+    if (codeFiles.length === 0) return [];
+
+    const requiredImports = config.requiredImports as string[];
+    const hasAnyImport = codeFiles.some((filePath) => {
+      const content = fileContents.get(filePath);
+      return content
+        ? requiredImports.some((imp) => content.toLowerCase().includes(imp.toLowerCase()))
+        : false;
+    });
+
+    if (hasAnyImport) return [];
+
+    return [
+      this.createFinding(
+        rule,
+        codeFiles[0]!,
+        1,
+        1,
+        `Missing project-level import for: ${requiredImports.join(', ')}`,
+      ),
+    ];
+  }
+
+  private evaluateProjectConfigPattern(
+    files: string[],
+    fileContents: Map<string, string>,
+    rule: Rule,
+    config: Record<string, unknown>,
+  ): ComplianceFinding[] {
+    if (!config.checkFiles || !Array.isArray(config.checkFiles)) return [];
+
+    const checkFiles = config.checkFiles as string[];
+    const settingPatterns: string[] = [];
+
+    if (config.requiredSettings && Array.isArray(config.requiredSettings)) {
+      settingPatterns.push(...(config.requiredSettings as string[]));
+    }
+    if (config.patterns && Array.isArray(config.patterns)) {
+      settingPatterns.push(...(config.patterns as string[]));
+    }
+    if (settingPatterns.length === 0) return [];
+
+    const matchingFiles = files.filter((filePath) => {
+      const fileName = basename(filePath);
+      return checkFiles.some((glob) => {
+        const pattern = glob.replace(/\./g, '\\.').replace(/\*/g, '.*');
+        return this.regexCache.getSafe(`^${pattern}$`, 'i').test(fileName);
+      });
+    });
+
+    const searchableFiles = matchingFiles.length > 0 ? matchingFiles : files;
+    const hasAnySetting = searchableFiles.some((filePath) => {
+      const content = fileContents.get(filePath);
+      if (!content) return false;
+      const lowerContent = content.toLowerCase();
+      return settingPatterns.some((pattern) => lowerContent.includes(pattern.toLowerCase()));
+    });
+
+    if (hasAnySetting || searchableFiles.length === 0) return [];
+
+    return [
+      this.createFinding(
+        rule,
+        searchableFiles[0]!,
+        1,
+        1,
+        `Missing required project configuration: ${settingPatterns.join(', ')}`,
+      ),
+    ];
   }
 
   // ── AST Pattern Evaluation ──
@@ -690,7 +819,7 @@ export class RuleEvaluator {
 
   private evaluateSemanticPattern(
     filePath: string,
-    content: string,
+    _content: string,
     lines: string[],
     rule: Rule,
     config: Record<string, unknown>,
@@ -699,10 +828,7 @@ export class RuleEvaluator {
     if (!RuleEvaluator.CODE_EXTENSIONS.has(ext)) return [];
 
     if (config.functionNames && config.checkArguments) {
-      const regexFindings = this.detectPHIInLogStatements(filePath, lines, rule, config);
-      // Also run taint analysis for log-sink rules
-      const taintFindings = analyzeTaint(filePath, content, rule);
-      return [...regexFindings, ...taintFindings];
+      return this.detectPHIInLogStatements(filePath, lines, rule, config);
     }
     if (config.checkForPHIFields && config.apiContext) {
       return this.detectPHIInApiResponse(filePath, lines, rule);
