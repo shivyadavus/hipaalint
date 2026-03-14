@@ -1,11 +1,11 @@
 ---
 name: rules
 description: >
-  List and search HIPAA compliance rules in the HipaaLint database. Browse all 33
-  rules across 6 categories, filter by severity or category, and search by keyword.
-  Each rule includes HIPAA citations and remediation guidance.
+  List and search compliance rules in the HipaaLint database. Browse all 266 rules
+  across HIPAA, HITRUST CSF, and SOC 2 Health in 6 categories. Filter by severity
+  or category, and search by keyword. Each rule includes citations and remediation guidance.
 user-invocable: true
-argument-hint: "[--category phi_protection] [--severity critical] [--query keyword]"
+argument-hint: '[--category phi_protection] [--severity critical] [--query keyword]'
 allowed-tools: Read, Grep, Glob, Bash
 ---
 
@@ -27,25 +27,25 @@ List and search HIPAA compliance rules.
 
 ## What It Does
 
-1. Queries the HipaaLint rule database (33 HIPAA Security Rule requirements)
+1. Queries the HipaaLint rule database (266 rules across HIPAA, HITRUST CSF, and SOC 2 Health)
 2. Applies optional filters by category, severity, or keyword
 3. Returns matching rules with ID, title, severity, category, and description
 
 ## Rule Categories
 
-| Category | Rules | Description |
-|----------|-------|-------------|
-| `phi_protection` | HIPAA-PHI-* | Protected Health Information safeguards |
-| `encryption` | HIPAA-ENC-* | Encryption and data-in-transit/at-rest |
-| `access_control` | HIPAA-AC-* | Authentication and authorization |
-| `audit_logging` | HIPAA-LOG-* | Audit trail and monitoring |
-| `infrastructure` | HIPAA-INFRA-* | Infrastructure security controls |
-| `ai_governance` | HIPAA-AI-* | AI/ML model governance |
+| Category         | Rule Prefixes                                    | Description                             |
+| ---------------- | ------------------------------------------------ | --------------------------------------- |
+| `phi_protection` | HIPAA-PHI-\*, HITRUST-PHI-\*, SOC2H-PHI-\*       | Protected Health Information safeguards |
+| `encryption`     | HIPAA-ENC-\*, HITRUST-ENC-\*, SOC2H-ENC-\*       | Encryption and data-in-transit/at-rest  |
+| `access_control` | HIPAA-AC-\*, HITRUST-AC-\*, SOC2H-AC-\*          | Authentication and authorization        |
+| `audit_logging`  | HIPAA-LOG-\*, HITRUST-LOG-\*, SOC2H-LOG-\*       | Audit trail and monitoring              |
+| `infrastructure` | HIPAA-INFRA-\*, HITRUST-INFRA-\*, SOC2H-INFRA-\* | Infrastructure security controls        |
+| `ai_governance`  | HIPAA-AI-\*, HITRUST-AI-\*, SOC2H-AI-\*          | AI/ML model governance                  |
 
 ## Example Output
 
 ```
-HipaaLint Rules (33)
+HipaaLint Rules (266)
 
   HIPAA-PHI-001: PHI in Log Statements
     Severity: critical | Category: phi_protection

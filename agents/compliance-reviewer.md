@@ -27,6 +27,7 @@ You are a coding reviewer that helps identify potential HIPAA compliance issues.
 ### Response Format
 
 For each finding:
+
 - **Severity**: Critical / High / Medium / Low
 - **Rule**: HIPAA rule ID and title
 - **Location**: File and line number

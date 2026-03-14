@@ -51,6 +51,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       name: 'compliance_scan',
       description:
         'Scan a project directory for HIPAA compliance violations. Returns findings grouped by severity with remediation guidance.',
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+      },
       inputSchema: {
         type: 'object' as const,
         properties: {
@@ -87,6 +91,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       name: 'compliance_score',
       description:
         'Calculate the HipaaLint Score for a project. Returns a weighted score (0-100) across 6 compliance domains.',
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+      },
       inputSchema: {
         type: 'object' as const,
         properties: {
@@ -113,6 +121,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       name: 'compliance_report',
       description:
         'Generate a compliance audit report in JSON or PDF format. Includes executive summary, findings, scores, and remediation recommendations.',
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+      },
       inputSchema: {
         type: 'object' as const,
         properties: {
@@ -147,6 +159,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       name: 'phi_detect',
       description:
         'Detect Protected Health Information (PHI) in a code snippet or file. Returns all detected PHI with HIPAA citation references.',
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+      },
       inputSchema: {
         type: 'object' as const,
         properties: {
@@ -171,6 +187,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     {
       name: 'compliance_rules',
       description: 'List or search HIPAA compliance rules in the HipaaLint database.',
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+      },
       inputSchema: {
         type: 'object' as const,
         properties: {

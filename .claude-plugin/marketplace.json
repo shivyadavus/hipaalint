@@ -2,7 +2,7 @@
   "name": "hipaalint-marketplace",
   "owner": {
     "name": "Shiv Yadav",
-    "url": "https://github.com/shivyadavus"
+    "email": "shivyadavus@users.noreply.github.com"
   },
   "metadata": {
     "description": "Helps identify potential HIPAA compliance issues in AI-assisted development. Does not guarantee compliance.",
@@ -11,12 +11,41 @@
   "plugins": [
     {
       "name": "hipaalint-ai",
-      "source": ".",
+      "source": {
+        "source": "github",
+        "repo": "shivyadavus/hipaalint"
+      },
       "description": "Helps identify potential HIPAA compliance issues — PHI detection, compliance scoring, and audit reports. Does not guarantee compliance.",
       "version": "1.0.0",
       "author": {
-        "name": "Shiv Yadav"
-      }
+        "name": "Shiv Yadav",
+        "email": "shivyadavus@users.noreply.github.com"
+      },
+      "homepage": "https://github.com/shivyadavus/hipaalint#readme",
+      "repository": "https://github.com/shivyadavus/hipaalint",
+      "license": "Apache-2.0",
+      "keywords": [
+        "hipaa",
+        "compliance",
+        "healthcare",
+        "phi-detection",
+        "security",
+        "audit",
+        "mcp",
+        "static-analysis"
+      ],
+      "category": "security",
+      "tags": [
+        "hipaa",
+        "healthcare",
+        "compliance",
+        "phi",
+        "security",
+        "hitrust",
+        "soc2",
+        "static-analysis",
+        "audit"
+      ]
     }
   ]
 }

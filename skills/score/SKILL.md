@@ -5,7 +5,7 @@ description: >
   0-100 score across 6 HIPAA domains (PHI Protection, Encryption, Access Control,
   Audit Logging, Infrastructure, AI Governance) with band classification.
 user-invocable: true
-argument-hint: "[path] [--sensitivity strict|balanced|relaxed]"
+argument-hint: '[path] [--sensitivity strict|balanced|relaxed]'
 allowed-tools: Read, Grep, Glob, Bash
 ---
 
@@ -41,12 +41,12 @@ Calculate the HipaaLint Score for the current project.
 
 ## Score Bands
 
-| Band | Score | Meaning |
-|------|-------|---------|
-| Compliant | 90-100 | Meets HIPAA technical safeguard requirements |
-| Needs Improvement | 70-89 | Minor gaps to address |
-| At Risk | 50-69 | Significant compliance gaps |
-| Critical | 0-49 | Major violations requiring immediate action |
+| Band              | Score  | Meaning                                               |
+| ----------------- | ------ | ----------------------------------------------------- |
+| Strong            | 90-100 | Meets baseline HIPAA technical safeguard requirements |
+| Needs Improvement | 70-89  | Minor gaps to address                                 |
+| At Risk           | 50-69  | Significant compliance gaps                           |
+| Critical          | 0-49   | Major violations requiring immediate action           |
 
 ## Example Output
 

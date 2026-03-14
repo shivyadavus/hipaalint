@@ -5,7 +5,7 @@ description: >
   identifier types including names, SSNs, medical record numbers, dates of birth,
   and IP addresses in source code, logs, and configuration files.
 user-invocable: true
-argument-hint: "<file> [--sensitivity strict|balanced|relaxed]"
+argument-hint: '<file> [--sensitivity strict|balanced|relaxed]'
 allowed-tools: Read, Grep, Glob, Bash
 ---
 
@@ -34,14 +34,14 @@ Detect Protected Health Information (PHI) in a file or code snippet.
 
 ## HIPAA Identifier Types
 
-| Type | Example Pattern | HIPAA Reference |
-|------|----------------|-----------------|
-| SSN | `123-45-6789` | 45 CFR 164.514(b)(2)(i)(L) |
-| Email | `patient@example.com` | 45 CFR 164.514(b)(2)(i)(G) |
-| Phone | `(555) 123-4567` | 45 CFR 164.514(b)(2)(i)(F) |
-| Date of Birth | `1990-01-15` | 45 CFR 164.514(b)(2)(i)(C) |
-| IP Address | `192.168.1.1` | 45 CFR 164.514(b)(2)(i)(O) |
-| MRN | `MRN-12345` | 45 CFR 164.514(b)(2)(i)(E) |
+| Type          | Example Pattern       | HIPAA Reference            |
+| ------------- | --------------------- | -------------------------- |
+| SSN           | `123-45-6789`         | 45 CFR 164.514(b)(2)(i)(L) |
+| Email         | `patient@example.com` | 45 CFR 164.514(b)(2)(i)(G) |
+| Phone         | `(555) 123-4567`      | 45 CFR 164.514(b)(2)(i)(F) |
+| Date of Birth | `1990-01-15`          | 45 CFR 164.514(b)(2)(i)(C) |
+| IP Address    | `192.168.1.1`         | 45 CFR 164.514(b)(2)(i)(O) |
+| MRN           | `MRN-12345`           | 45 CFR 164.514(b)(2)(i)(E) |
 
 ## Example Output
 

@@ -5,7 +5,7 @@ description: >
   encryption, access control, audit logging, and AI governance standards when generating
   or reviewing healthcare code.
 user-invocable: true
-argument-hint: "[path]"
+argument-hint: '[path]'
 allowed-tools: Read, Grep, Glob, Bash
 ---
 
@@ -118,6 +118,7 @@ CREATE TABLE patients (
 ## Code Review Checklist
 
 Before approving any code that touches PHI:
+
 - [ ] No PHI in log statements
 - [ ] No PHI in error messages
 - [ ] API responses filtered through DTOs

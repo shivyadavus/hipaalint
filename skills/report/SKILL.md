@@ -5,7 +5,7 @@ description: >
   or PDF reports with executive summary, scored findings, domain breakdown,
   and prioritized remediation recommendations.
 user-invocable: true
-argument-hint: "[path] [--format json|pdf|sarif]"
+argument-hint: '[path] [--format json|pdf|sarif]'
 allowed-tools: Read, Grep, Glob, Bash
 ---
 
@@ -37,11 +37,11 @@ Generate a compliance audit report for the current project.
 
 ## Output Formats
 
-| Format | Use Case |
-|--------|----------|
-| `json` | Machine-readable, CI/CD integration |
-| `sarif` | GitHub Code Scanning upload |
-| `pdf` | Auditor-ready 5-page report |
+| Format  | Use Case                            |
+| ------- | ----------------------------------- |
+| `json`  | Machine-readable, CI/CD integration |
+| `sarif` | GitHub Code Scanning upload         |
+| `pdf`   | Auditor-ready 5-page report         |
 
 ## MCP Tool
 
