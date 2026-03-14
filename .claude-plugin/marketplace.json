@@ -5,7 +5,7 @@
     "email": "shivyadavus@users.noreply.github.com"
   },
   "metadata": {
-    "description": "Helps identify potential HIPAA compliance issues in AI-assisted development. Does not guarantee compliance.",
+    "description": "Static analysis for potential HIPAA-related issues in AI-assisted development. Informational only; not legal advice, compliance certification, or a guarantee of compliance.",
     "version": "1.0.0"
   },
   "plugins": [
@@ -15,7 +15,7 @@
         "source": "github",
         "repo": "shivyadavus/hipaalint"
       },
-      "description": "Helps identify potential HIPAA compliance issues — PHI detection, compliance scoring, and audit reports. Does not guarantee compliance.",
+      "description": "Static analysis for potential HIPAA-related issues — PHI detection, risk scoring, and audit reports. Informational only; not legal advice, compliance certification, or a guarantee of compliance.",
       "version": "1.0.0",
       "author": {
         "name": "Shiv Yadav",

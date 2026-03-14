@@ -4,7 +4,7 @@
 
 <br><br>
 
-**Catch HIPAA violations before they ship.**
+**Review healthcare code for potential HIPAA-related issues.**
 
 [![npm version](https://img.shields.io/npm/v/%40hipaalint%2Fai.svg)](https://www.npmjs.com/package/@hipaalint/ai)
 [![CI](https://github.com/shivyadavus/hipaalint/actions/workflows/ci.yml/badge.svg)](https://github.com/shivyadavus/hipaalint/actions/workflows/ci.yml)
@@ -12,7 +12,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-18%2B-green.svg)](https://nodejs.org/)
 
-_PHI detection, compliance scoring, auto-remediation, and audit reports — from your terminal, AI coding agent, or CI/CD pipeline._
+_PHI detection, risk scoring, auto-remediation, and audit reports — for local review in your terminal, AI coding agent, or CI/CD pipeline. Informational only; not legal advice or compliance certification._
 
 </div>
 
@@ -20,9 +20,11 @@ _PHI detection, compliance scoring, auto-remediation, and audit reports — from
 
 ## Why HipaaLint?
 
-A single exposed SSN in a log statement or an `http://` instead of `https://` can trigger a HIPAA violation carrying fines up to **$1.9M per incident**. With AI coding assistants generating code faster than ever, compliance gaps slip through at scale.
+Healthcare and health-adjacent codebases can accidentally expose PHI, use insecure transport, or miss basic access-control and audit-logging safeguards. AI-assisted development can increase that risk if generated code is merged without focused review.
 
-HipaaLint scans your codebase against **266 rules across HIPAA, HITRUST CSF, and SOC 2 Health**, scores your project 0-100, and **auto-fixes simple violations** directly in the CLI and editor integrations.
+HipaaLint is a local static-analysis tool that scans your codebase against **266 rules across HIPAA, HITRUST CSF, and SOC 2 Health**, produces a 0-100 risk-oriented score, and auto-fixes a limited set of simple violations in the CLI and editor integrations.
+
+It is designed to help teams review code and prioritize remediation. It does **not** guarantee compliance, provide legal advice, or replace formal legal, privacy, security, or compliance review.
 
 ## Quick Start
 
@@ -206,6 +208,27 @@ Build it with Gradle and JDK 21:
 npm run jetbrains:build
 ```
 
+## Claude Code Plugin
+
+Install HipaaLint as a Claude Code plugin directly from this repository:
+
+```bash
+claude plugin install https://github.com/shivyadavus/hipaalint
+```
+
+The plugin bundles:
+
+- 6 Claude skills in `skills/`
+- 1 compliance review agent in `agents/`
+- a local MCP server exposing 5 compliance tools via `.mcp.json`
+
+Before submitting the repo to the Claude marketplace, validate both manifests locally:
+
+```bash
+claude plugin validate .claude-plugin/plugin.json
+claude plugin validate .claude-plugin/marketplace.json
+```
+
 ## Release Readiness
 
 Run the full local release gate before cutting a tag:
@@ -385,7 +408,7 @@ Contributions are welcome! See [CONTRIBUTING.md](./CONTRIBUTING.md) to get start
 
 ## Support the Project
 
-If HipaaLint helps you ship compliant code, please consider giving the repo a star. It helps others discover the project and motivates continued development.
+If HipaaLint helps you review healthcare-related code more safely, please consider giving the repo a star. It helps others discover the project and motivates continued development.
 
 [![GitHub stars](https://img.shields.io/github/stars/shivyadavus/hipaalint?style=social)](https://github.com/shivyadavus/hipaalint)
 

@@ -20,6 +20,7 @@ dist/
 .gradle/
 jetbrains-plugin/.gradle/
 jetbrains-plugin/build/
+jetbrains-plugin/bin/
 vscode-extension/out/
 *.vsix
 *.zip

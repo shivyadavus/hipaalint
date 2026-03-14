@@ -1,7 +1,7 @@
 {
   "name": "@hipaalint/ai",
   "version": "1.0.0",
-  "description": "Helps identify potential HIPAA compliance issues — PHI detection, compliance scoring, and audit reports for Claude Code, Cursor, and AI coding agents.",
+  "description": "Static analysis for potential HIPAA-related issues — PHI detection, risk scoring, and audit reports for Claude Code, Cursor, and AI coding agents. Informational only; not legal advice or compliance certification.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

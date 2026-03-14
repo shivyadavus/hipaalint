@@ -44,6 +44,16 @@ const claudePlugin = readJson('.claude-plugin/plugin.json');
 claudePlugin.version = version;
 writeJson('.claude-plugin/plugin.json', claudePlugin);
 
+const claudeMarketplace = readJson('.claude-plugin/marketplace.json');
+claudeMarketplace.metadata.version = version;
+if (Array.isArray(claudeMarketplace.plugins)) {
+  claudeMarketplace.plugins = claudeMarketplace.plugins.map((plugin) => ({
+    ...plugin,
+    version,
+  }));
+}
+writeJson('.claude-plugin/marketplace.json', claudeMarketplace);
+
 const vscodeExtension = readJson('vscode-extension/package.json');
 vscodeExtension.version = version;
 writeJson('vscode-extension/package.json', vscodeExtension);

@@ -110,7 +110,7 @@ jobs:
 
           **Claude Code Plugin:**
           ```bash
-          claude plugin install https://github.com/shivyadavus/hipaalint-ai
+          claude plugin install https://github.com/shivyadavus/hipaalint
           ```
 
           ### Plugin Info

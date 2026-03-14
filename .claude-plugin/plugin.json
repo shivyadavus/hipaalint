@@ -1,7 +1,7 @@
 {
   "name": "hipaalint-ai",
   "version": "1.0.0",
-  "description": "Helps identify potential HIPAA compliance issues — PHI detection, compliance scoring, and audit reports. Does not guarantee compliance.",
+  "description": "Static analysis for potential HIPAA-related issues — PHI detection, risk scoring, and audit reports. Informational only; not legal advice, compliance certification, or a guarantee of compliance.",
   "author": {
     "name": "Shiv Yadav",
     "url": "https://github.com/shivyadavus"
@@ -9,7 +9,14 @@
   "license": "Apache-2.0",
   "repository": "https://github.com/shivyadavus/hipaalint",
   "homepage": "https://github.com/shivyadavus/hipaalint#readme",
-  "keywords": ["hipaa", "compliance", "healthcare", "phi-detection", "security", "audit"],
+  "keywords": [
+    "hipaa",
+    "compliance",
+    "healthcare",
+    "phi-detection",
+    "security",
+    "audit"
+  ],
   "skills": [
     "./skills/hipaa-compliance",
     "./skills/scan",
@@ -18,6 +25,8 @@
     "./skills/phi",
     "./skills/rules"
   ],
-  "agents": ["./agents/compliance-reviewer.md"],
+  "agents": [
+    "./agents/compliance-reviewer.md"
+  ],
   "mcpServers": "./.mcp.json"
 }

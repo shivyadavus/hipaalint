@@ -55,14 +55,27 @@ echo "📦 Bumping version ($BUMP)..."
 NEW_VERSION=$(npm version "$BUMP" --no-git-tag-version | tr -d 'v')
 echo "  New version: $NEW_VERSION"
 
-# Sync version in plugin.json
+# Sync version in plugin metadata
 node -e "
 const fs = require('fs');
-const path = '.claude-plugin/plugin.json';
-const plugin = JSON.parse(fs.readFileSync(path, 'utf8'));
+const pluginPath = '.claude-plugin/plugin.json';
+const plugin = JSON.parse(fs.readFileSync(pluginPath, 'utf8'));
 plugin.version = '$NEW_VERSION';
-fs.writeFileSync(path, JSON.stringify(plugin, null, 4) + '\n');
+fs.writeFileSync(pluginPath, JSON.stringify(plugin, null, 4) + '\n');
+
+const marketplacePath = '.claude-plugin/marketplace.json';
+const marketplace = JSON.parse(fs.readFileSync(marketplacePath, 'utf8'));
+marketplace.metadata.version = '$NEW_VERSION';
+if (Array.isArray(marketplace.plugins)) {
+  marketplace.plugins = marketplace.plugins.map((entry) => ({
+    ...entry,
+    version: '$NEW_VERSION'
+  }));
+}
+fs.writeFileSync(marketplacePath, JSON.stringify(marketplace, null, 4) + '\n');
+
 console.log('  ✅ plugin.json updated to $NEW_VERSION');
+console.log('  ✅ marketplace.json updated to $NEW_VERSION');
 "
 
 # ── 3. Rebuild with new version ────────────────
@@ -73,7 +86,7 @@ npm run build
 echo ""
 echo "🏷️  Creating release commit and tag..."
 
-git add package.json package-lock.json .claude-plugin/plugin.json
+git add package.json package-lock.json .claude-plugin/plugin.json .claude-plugin/marketplace.json
 git commit -m "release: v${NEW_VERSION}"
 git tag -a "v${NEW_VERSION}" -m "Release v${NEW_VERSION}"
 
@@ -95,9 +108,9 @@ echo "    • npm publish via .github/workflows/release.yml"
 echo "    • GitHub Release with changelog"
 echo ""
 echo "  To install as Claude Code plugin:"
-echo "    claude plugin install https://github.com/shivyadavus/hipaalint-ai"
+echo "    claude plugin install https://github.com/shivyadavus/hipaalint"
 echo ""
 echo "  To submit to Claude Code marketplace:"
 echo "    1. Go to claude.com → Settings → Plugins → Submit"
-echo "    2. Enter repo URL: https://github.com/shivyadavus/hipaalint-ai"
+echo "    2. Enter repo URL: https://github.com/shivyadavus/hipaalint"
 echo "═══════════════════════════════════════════"
