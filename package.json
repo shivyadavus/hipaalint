@@ -1,7 +1,7 @@
 {
   "name": "@hipaalint/ai",
   "version": "1.0.0",
-  "description": "Catch HIPAA violations before they ship — PHI detection, compliance scoring, and audit reports for Claude Code, Cursor, and AI coding agents.",
+  "description": "Helps identify potential HIPAA compliance issues — PHI detection, compliance scoring, and audit reports for Claude Code, Cursor, and AI coding agents.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -34,6 +34,7 @@
     "assets/logo.svg",
     "assets/logo-dark.svg",
     "AGENTS.md",
+    "NOTICE",
     "action/action.yml",
     "hooks/"
   ],

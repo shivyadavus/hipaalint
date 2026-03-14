@@ -1,0 +1,42 @@
+HipaaLint AI
+Copyright 2024 Shiv Yadav
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+---
+
+This product includes the following third-party dependencies:
+
+- better-sqlite3 (MIT License) — Copyright Joshua Wise
+- commander (MIT License) — Copyright TJ Holowaychuk
+- chalk (MIT License) — Copyright Sindre Sorhus
+- glob (ISC License) — Copyright Isaac Z. Schlueter
+- pdfkit (MIT License) — Copyright Devon Govett
+- zod (MIT License) — Copyright Colin McDonnell
+- @modelcontextprotocol/sdk (MIT License) — Copyright Anthropic
+
+---
+
+DISCLAIMER
+
+HipaaLint AI is a static analysis tool that helps identify potential
+compliance issues. It does NOT guarantee HIPAA, HITRUST, SOC 2, GDPR,
+or CCPA compliance. It is not a substitute for qualified legal counsel,
+certified compliance auditors, or official HIPAA security risk assessments.
+
+Use of this tool does not create a professional services relationship,
+legal advisory engagement, or compliance certification of any kind.
+The authors and contributors assume no liability for regulatory actions,
+data breaches, or compliance failures arising from the use of this software.
+
+See the LICENSE file for full warranty disclaimer and limitation of liability.

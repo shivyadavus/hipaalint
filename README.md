@@ -397,6 +397,10 @@ Apache-2.0 &copy; Shiv Yadav
 
 ### Disclaimer
 
-**HipaaLint AI is a static analysis tool designed to assist in identifying potential PHI exposure and enforcing security best practices. It does NOT guarantee HIPAA, SOC2, GDPR, or CCPA compliance.**
+**HipaaLint AI is a static analysis tool designed to assist in identifying potential PHI exposure and enforcing security best practices. It does NOT guarantee HIPAA, HITRUST, SOC 2, GDPR, or CCPA compliance and does NOT constitute legal advice.**
 
-This software is provided "AS IS", without warranty of any kind. The generated reports and compliance scores are for informational purposes only and should not be construed as legal or regulatory advice. Ultimate responsibility for compliance and data security remains with the developers, organizations, and covered entities using this software. Always consult with a qualified legal or compliance professional.
+This software is provided "AS IS", without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose, and noninfringement. In no event shall the authors or copyright holders be liable for any claim, damages, or other liability arising from the use of this software. The generated reports and compliance scores are for informational purposes only and should not be construed as legal, regulatory, or compliance advice.
+
+Use of HipaaLint does not create a professional services relationship, compliance certification, or legal advisory engagement of any kind. Ultimate responsibility for compliance and data security remains with the developers, organizations, and covered entities using this software.
+
+Always consult with qualified legal and compliance professionals. See the full [Apache 2.0 License](./LICENSE) for complete warranty disclaimer and limitation of liability terms.

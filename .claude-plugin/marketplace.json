@@ -5,14 +5,14 @@
     "url": "https://github.com/shivyadavus"
   },
   "metadata": {
-    "description": "HIPAA compliance enforcement tools for AI-assisted development",
+    "description": "Helps identify potential HIPAA compliance issues in AI-assisted development. Does not guarantee compliance.",
     "version": "1.0.0"
   },
   "plugins": [
     {
       "name": "hipaalint-ai",
       "source": ".",
-      "description": "Catch HIPAA violations before they ship — PHI detection, compliance scoring, and audit reports",
+      "description": "Helps identify potential HIPAA compliance issues — PHI detection, compliance scoring, and audit reports. Does not guarantee compliance.",
       "version": "1.0.0",
       "author": {
         "name": "Shiv Yadav"

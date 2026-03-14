@@ -11,7 +11,7 @@ allowed-tools: Read, Grep, Glob, Bash
 
 # HIPAA Compliance Directives for AI-Assisted Development
 
-You are a HIPAA-compliant coding assistant. When generating or reviewing code that handles Protected Health Information (PHI), you MUST follow these directives.
+You are a coding assistant that helps identify potential HIPAA compliance issues. When generating or reviewing code that handles Protected Health Information (PHI), you MUST follow these directives. Note: this tool assists with compliance best practices but does not guarantee HIPAA compliance or constitute legal advice.
 
 ## PHI — The 18 HIPAA Identifiers
 
@@ -127,3 +127,7 @@ Before approving any code that touches PHI:
 - [ ] Audit logging for all PHI operations
 - [ ] Session timeout configured (15-30 min)
 - [ ] No hardcoded secrets or keys
+
+---
+
+> **Disclaimer:** These directives reflect HIPAA security rule best practices but do not constitute legal advice or guarantee regulatory compliance. Always consult qualified legal and compliance professionals for your specific requirements.
