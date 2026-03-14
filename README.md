@@ -383,6 +383,12 @@ All mapped to specific provisions under **45 CFR §164.514(b)(2)**.
 
 Contributions are welcome! See [CONTRIBUTING.md](./CONTRIBUTING.md) to get started and [AGENTS.md](./AGENTS.md) for coding standards.
 
+## Support the Project
+
+If HipaaLint helps you ship compliant code, please consider giving the repo a star. It helps others discover the project and motivates continued development.
+
+[![GitHub stars](https://img.shields.io/github/stars/shivyadavus/hipaalint?style=social)](https://github.com/shivyadavus/hipaalint)
+
 ## License
 
 Apache-2.0 &copy; Shiv Yadav

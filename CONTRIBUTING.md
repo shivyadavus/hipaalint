@@ -55,9 +55,27 @@ Open a [feature request](https://github.com/shivyadavus/hipaalint/issues/new?tem
 3. Write tests for new functionality
 4. Ensure all checks pass:
    ```bash
-   npm run typecheck && npm run lint && npm test
+   npm run format:check && npm run typecheck && npm run lint && npm test
    ```
-5. Open a pull request against `main`
+5. Open a pull request against `main` using the [PR template](./.github/PULL_REQUEST_TEMPLATE.md)
+
+### Commit & PR Guidelines
+
+- **Commit messages**: Use imperative mood, be concise (e.g., "Add PHI detection for MRN patterns", not "Added PHI detection")
+- **PR titles**: Use a descriptive title that summarizes the change (e.g., "Add network segmentation rule HIPAA-INF-004")
+- **One concern per PR**: Keep pull requests focused — avoid bundling unrelated changes
+- **Reference issues**: Link related issues in your PR description (e.g., "Fixes #42")
+
+### Pre-Commit Hook
+
+The repository includes a pre-commit hook that blocks commits containing critical HIPAA violations. Install it after cloning:
+
+```bash
+cp hooks/pre-commit .git/hooks/
+chmod +x .git/hooks/pre-commit
+```
+
+This runs automatically on every commit to prevent PHI exposure in source code.
 
 ## Coding Standards
 
@@ -81,6 +99,17 @@ All coding standards are documented in [AGENTS.md](./AGENTS.md). Key points:
 ## Project Structure
 
 See [AGENTS.md](./AGENTS.md) for the full architecture breakdown.
+
+## Review Process
+
+All contributions go through the following review process:
+
+1. **CI checks**: Your PR must pass `typecheck`, `lint`, `format:check`, and `test` before review
+2. **Maintainer review**: At least one maintainer must approve the PR
+3. **PHI scrutiny**: Changes touching PHI detection, scoring, or report generation receive additional review for accuracy and safety
+4. **Squash merge**: PRs are squash-merged into `main` to keep history clean
+
+Maintainers aim to review PRs within **3 business days**. If your PR hasn't received feedback after that, feel free to leave a comment.
 
 ## License
 
