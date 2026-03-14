@@ -43,6 +43,7 @@ npm-debug.log*
 
 # Internal planning docs (local-only)
 prd.md
+PRODUCT_ROADMAP.md
 DESIGN_AND_IMPLEMENTATION_PLAN.md
 CLAUDE.md
 BACKLOG.md
