@@ -12,6 +12,8 @@ HipaaLint does not intentionally collect, sell, or share personal data through t
 
 The core CLI, MCP server, and local editor integrations are designed to run locally. HipaaLint does not require users to send source code, PHI, or other project data to a HipaaLint-operated remote service in order to use the plugin.
 
+HipaaLint does not use its own analytics or telemetry service at this time.
+
 ## User Responsibilities
 
 Users are responsible for reviewing any code, logs, reports, screenshots, issue reports, or other materials before sharing them publicly or with third parties.
@@ -21,6 +23,8 @@ Do not include PHI, credentials, access tokens, private keys, patient records, o
 ## Third-Party Platforms
 
 If you choose to use HipaaLint through third-party platforms or services, including code hosting providers, editor marketplaces, or AI development tools, your use of those platforms is also subject to their terms and privacy policies.
+
+This includes platforms and services such as GitHub, Claude Code, and any editor or marketplace used to install or run the plugin.
 
 ## Security Reporting
 
